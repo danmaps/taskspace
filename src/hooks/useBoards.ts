@@ -16,63 +16,36 @@ export function useBoards() {
       setLoading(false)
     }
   }, [user])
-
   const fetchBoards = async () => {
     try {
       setLoading(true)
-      // Try to order by position first, fall back to created_at if position column doesn't exist
-      let { data, error } = await supabase
+      // Temporarily use created_at ordering until position column migration is applied
+      const { data, error } = await supabase
         .from('boards')
         .select('*')
-        .order('position', { ascending: true })
-
-      // If position column doesn't exist, fall back to created_at ordering
-      if (error && error.message.includes('position')) {
-        const fallbackResult = await supabase
-          .from('boards')
-          .select('*')
-          .order('created_at', { ascending: false })
-        
-        data = fallbackResult.data
-        error = fallbackResult.error
-      }
+        .order('created_at', { ascending: false })
 
       if (error) throw error
       setBoards(data || [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')    } finally {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
       setLoading(false)
     }
   }
-
   const createBoard = async (board: Omit<BoardInsert, 'user_id'>) => {
     if (!user) throw new Error('User not authenticated')
 
     try {
-      // Get the next position (max position + 1), default to 0 if position doesn't exist
-      const maxPosition = boards.length > 0 ? Math.max(...boards.map(b => b.position || 0)) : -1
-      
-      // Try creating with position first
-      let { data, error } = await supabase
+      // Temporarily create without position until migration is applied
+      const { data, error } = await supabase
         .from('boards')
-        .insert({ ...board, user_id: user.id, position: maxPosition + 1 })
+        .insert({ ...board, user_id: user.id })
         .select()
         .single()
 
-      // If position column doesn't exist, create without it
-      if (error && error.message.includes('position')) {
-        const fallbackResult = await supabase
-          .from('boards')
-          .insert({ ...board, user_id: user.id })
-          .select()
-          .single()
-        
-        data = fallbackResult.data
-        error = fallbackResult.error
-      }
-
       if (error) throw error
-      setBoards(prev => [...prev, data].sort((a, b) => (a.position || 0) - (b.position || 0)))
+      setBoards(prev => [...prev, data])
       return data
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create board')
@@ -111,45 +84,10 @@ export function useBoards() {
       throw err
     }
   }
-
-  const reorderBoards = async (sourceIndex: number, destinationIndex: number) => {
-    if (!user) throw new Error('User not authenticated')
-
-    try {
-      // Optimistically update the local state
-      const reorderedBoards = Array.from(boards)
-      const [movedBoard] = reorderedBoards.splice(sourceIndex, 1)
-      reorderedBoards.splice(destinationIndex, 0, movedBoard)
-      
-      // Update positions
-      const boardUpdates = reorderedBoards.map((board, index) => ({
-        id: board.id,
-        position: index
-      }))
-
-      setBoards(reorderedBoards)
-
-      // Update positions in database
-      const updatePromises = boardUpdates.map(({ id, position }) =>
-        supabase
-          .from('boards')
-          .update({ position })
-          .eq('id', id)
-      )
-
-      const results = await Promise.all(updatePromises)
-      
-      // Check for any errors
-      const errors = results.filter(result => result.error)
-      if (errors.length > 0) {
-        throw new Error('Failed to update board positions')
-      }    } catch (err) {
-      // Revert optimistic update on error
-      await fetchBoards()
-      setError(err instanceof Error ? err.message : 'Failed to reorder boards')
-      throw err
-    }
-  }
+  // Temporarily disabled until position column migration is applied
+  // const reorderBoards = async (sourceIndex: number, destinationIndex: number) => {
+  //   // Function temporarily disabled
+  // }
 
   return {
     boards,

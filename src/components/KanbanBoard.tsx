@@ -65,6 +65,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
         title: "Task created",
         description: "Your task has been added successfully.",
       });
+      onDataChange?.(); // Trigger data refresh
     } catch (error) {
       toast({
         title: "Error",
@@ -130,13 +131,12 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
       if (updates.urgency !== undefined) dbUpdates.urgency = updates.urgency;
       if (updates.assignee !== undefined) dbUpdates.assignee = updates.assignee || null;
       if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate || null;
-      if (updates.tags !== undefined) dbUpdates.tags = updates.tags || [];
-
-      await taskHook.updateTask(taskId, dbUpdates);
+      if (updates.tags !== undefined) dbUpdates.tags = updates.tags || [];      await taskHook.updateTask(taskId, dbUpdates);
       toast({
         title: "Task updated",
         description: "Task has been updated successfully.",
       });
+      onDataChange?.(); // Trigger data refresh
     } catch (error) {
       toast({
         title: "Error",
@@ -156,14 +156,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
     if (!columnId) return;
     
     const taskHook = taskHooks[columnId];
-    if (!taskHook) return;
-
-    try {
+    if (!taskHook) return;    try {
       await taskHook.deleteTask(taskId);
       toast({
         title: "Task deleted",
         description: "Task has been deleted successfully.",
       });
+      onDataChange?.(); // Trigger data refresh
     } catch (error) {
       toast({
         title: "Error",
@@ -171,8 +170,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
         variant: "destructive",
       });
     }
-  };
-  const handleDragEnd = async (result: DropResult) => {
+  };  const handleDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
     if (!destination) {
@@ -186,10 +184,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
       return;
     }
 
+    const sourceColumnId = source.droppableId;
+    const destColumnId = destination.droppableId;
+
     try {
-      const sourceColumnId = source.droppableId;
-      const destColumnId = destination.droppableId;
-      
       if (sourceColumnId === destColumnId) {
         // Reordering within the same column
         const sourceTaskHook = taskHooks[sourceColumnId];
@@ -200,16 +198,21 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
           reorderedTasks.splice(destination.index, 0, removed);
           
           await sourceTaskHook.reorderTasks(reorderedTasks);
-          // Trigger data refresh to ensure UI consistency
-          onDataChange?.();
         }
       } else {
-        // Moving to a different column
+        // Moving to a different column - use optimistic update
+        onOptimisticMoveTask?.(draggableId, sourceColumnId, destColumnId, destination.index);
+        
+        // Then perform the database update
         const sourceTaskHook = taskHooks[sourceColumnId];
         if (sourceTaskHook) {
-          await sourceTaskHook.moveTask(draggableId, destColumnId, destination.index);
-          // Trigger data refresh to ensure UI consistency across columns
-          onDataChange?.();
+          try {
+            await sourceTaskHook.moveTask(draggableId, destColumnId, destination.index);
+          } catch (error) {
+            // On error, revert by refetching the data
+            onDataChange?.();
+            throw error;
+          }
         }
       }
     } catch (error) {

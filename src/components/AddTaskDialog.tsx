@@ -68,8 +68,7 @@ export const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
           <DialogTitle className="text-xl font-semibold">Add New Task</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="space-y-4">          <div className="space-y-2">
             <Label htmlFor="title">Task Title *</Label>
             <Input
               id="title"
@@ -77,6 +76,7 @@ export const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
               onChange={(e) => handleChange('title', e.target.value)}
               placeholder="Enter task title..."
               className="bg-background/50 border-border/50"
+              autoComplete="off"
               required
             />
           </div>

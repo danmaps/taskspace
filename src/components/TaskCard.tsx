@@ -4,6 +4,9 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, User, Clock, Edit2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InlineEdit } from '@/components/ui/inline-edit';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { Task } from './KanbanBoard';
 
 interface TaskCardProps {
@@ -20,6 +23,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onDeleteTask 
 }) => {
   const [isHovering, setIsHovering] = useState(false);
+  const [isPriorityPopoverOpen, setIsPriorityPopoverOpen] = useState(false);
 
   const handleUpdateTitle = async (newTitle: string) => {
     if (onUpdateTask) {
@@ -32,10 +36,20 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       await onUpdateTask(task.id, { description: newDescription });
     }
   };
-
   const handleUpdateAssignee = async (newAssignee: string) => {
     if (onUpdateTask) {
       await onUpdateTask(task.id, { assignee: newAssignee });
+    }
+  };
+  const handleUpdatePriority = async (importance: boolean, urgency: boolean) => {
+    if (onUpdateTask) {
+      try {
+        await onUpdateTask(task.id, { importance, urgency });
+        setIsPriorityPopoverOpen(false);
+      } catch (error) {
+        // Error handling is done in the parent component
+        console.error('Failed to update priority:', error);
+      }
     }
   };
 
@@ -84,9 +98,51 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             placeholder="Task title..."
             maxLength={200}
           />          <div className="flex items-center gap-1 ml-2">
-            <div className={`priority-badge ${getPriorityColor(task.importance, task.urgency)}`}>
-              {getPriorityIcon(task.importance, task.urgency)} {getPriorityLabel(task.importance, task.urgency)}
-            </div>
+            <Popover open={isPriorityPopoverOpen} onOpenChange={setIsPriorityPopoverOpen}>
+              <PopoverTrigger asChild>
+                <button className={`priority-badge ${getPriorityColor(task.importance, task.urgency)} cursor-pointer hover:opacity-80 transition-opacity`}>
+                  {getPriorityIcon(task.importance, task.urgency)} {getPriorityLabel(task.importance, task.urgency)}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64" align="end">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm">Priority Settings</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Set the importance and urgency of this task
+                    </p>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="importance"
+                        checked={task.importance}
+                        onCheckedChange={(checked) => handleUpdatePriority(!!checked, task.urgency)}
+                      />
+                      <Label htmlFor="importance" className="text-sm font-normal">
+                        📊 Important
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="urgency"
+                        checked={task.urgency}
+                        onCheckedChange={(checked) => handleUpdatePriority(task.importance, !!checked)}
+                      />
+                      <Label htmlFor="urgency" className="text-sm font-normal">
+                        ⏰ Urgent
+                      </Label>
+                    </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {task.importance && task.urgency && "🔴 Urgent & Important (Do First)"}
+                    {task.importance && !task.urgency && "🟡 Important, Not Urgent (Schedule)"}
+                    {!task.importance && task.urgency && "🟠 Urgent, Not Important (Delegate)"}
+                    {!task.importance && !task.urgency && "⚪ Neither Urgent nor Important (Eliminate)"}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             {isHovering && onDeleteTask && (
               <Button
                 variant="ghost"
