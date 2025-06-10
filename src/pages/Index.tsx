@@ -1,8 +1,12 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
 import { KanbanBoard, Column } from '@/components/KanbanBoard';
 import { BoardSidebar } from '@/components/BoardSidebar';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { LogOut, User } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface Board {
   id: string;
@@ -81,6 +85,10 @@ const defaultColumns: Column[] = [
 ];
 
 const Index = () => {
+  const { user, signOut, loading } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
   const [boards, setBoards] = useState<Board[]>([
     {
       id: 'board-1',
@@ -159,6 +167,46 @@ const Index = () => {
     );
   };
 
+  // Redirect to auth if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate('/auth');
+    }
+  }, [user, loading, navigate]);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out",
+        description: "You have been signed out successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Show loading state while checking authentication
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (will redirect)
+  if (!user) {
+    return null;
+  }
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -169,10 +217,27 @@ const Index = () => {
           onCreateBoard={handleCreateBoard}
         />
         <main className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex items-center gap-2 p-4 border-b border-border/30 bg-background/50 backdrop-blur-sm">
-            <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
-            <div className="text-sm text-muted-foreground">
-              TaskFlow • Eisenhower Matrix Kanban Board
+          <div className="flex items-center justify-between gap-2 p-4 border-b border-border/30 bg-background/50 backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
+              <div className="text-sm text-muted-foreground">
+                TaskFlow • Eisenhower Matrix Kanban Board
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <User className="h-4 w-4" />
+                {user.email}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4 mr-1" />
+                Sign Out
+              </Button>
             </div>
           </div>
           <KanbanBoard
