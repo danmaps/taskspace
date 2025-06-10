@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useBoards } from '@/hooks/useBoards';
 import { useKanbanBoard } from '@/hooks/useKanbanBoard';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, User, Boxes } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
@@ -125,8 +125,16 @@ const Index = () => {
               <div className="text-sm text-muted-foreground">
                 TaskSpace • Eisenhower Matrix Kanban Board
               </div>
-            </div>
-            <div className="flex items-center gap-2">
+            </div>            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/prototype-3d')}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Boxes className="h-4 w-4 mr-1" />
+                3D Prototype
+              </Button>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <User className="h-4 w-4" />
                 {user.email}
