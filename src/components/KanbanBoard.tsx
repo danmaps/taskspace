@@ -31,9 +31,11 @@ export interface Column {
 
 interface KanbanBoardProps {
   kanbanData: KanbanData;
+  onDataChange?: () => void;
+  onOptimisticMoveTask?: (taskId: string, sourceColumnId: string, destColumnId: string, destIndex: number) => void;
 }
 
-export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData }) => {
+export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChange, onOptimisticMoveTask }) => {
   const [showAddTask, setShowAddTask] = useState<string | null>(null);
   const { toast } = useToast();
   const { updateBoard } = useBoards();
@@ -170,7 +172,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData }) => {
       });
     }
   };
-
   const handleDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
@@ -199,12 +200,16 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData }) => {
           reorderedTasks.splice(destination.index, 0, removed);
           
           await sourceTaskHook.reorderTasks(reorderedTasks);
+          // Trigger data refresh to ensure UI consistency
+          onDataChange?.();
         }
       } else {
         // Moving to a different column
         const sourceTaskHook = taskHooks[sourceColumnId];
         if (sourceTaskHook) {
           await sourceTaskHook.moveTask(draggableId, destColumnId, destination.index);
+          // Trigger data refresh to ensure UI consistency across columns
+          onDataChange?.();
         }
       }
     } catch (error) {

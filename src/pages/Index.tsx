@@ -16,7 +16,7 @@ const Index = () => {
   const { toast } = useToast();  // Use remote data hooks
   const { boards, loading: boardsLoading, createBoard, deleteBoard } = useBoards();
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
-  const { data: kanbanData, loading: kanbanLoading, createDefaultBoard } = useKanbanBoard(activeBoardId);
+  const { data: kanbanData, loading: kanbanLoading, createDefaultBoard, refetch: refetchKanbanData, optimisticMoveTask } = useKanbanBoard(activeBoardId);
   // Set initial active board when boards are loaded
   useEffect(() => {
     if (boards.length > 0 && !activeBoardId) {
@@ -143,6 +143,8 @@ const Index = () => {
             </div>
           </div>          <KanbanBoard
             kanbanData={kanbanData}
+            onDataChange={refetchKanbanData}
+            onOptimisticMoveTask={optimisticMoveTask}
           />
         </main>
       </div>

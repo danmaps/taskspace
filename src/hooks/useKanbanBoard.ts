@@ -18,19 +18,14 @@ export function useKanbanBoard(boardId: string | null) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { user } = useAuth()
-
   useEffect(() => {
     if (boardId && user) {
       fetchKanbanData()
-      setupRealTimeSubscriptions()
+      const cleanup = setupRealTimeSubscriptions()
+      return cleanup
     } else {
       setData({ board: null, columns: [], tasks: {} })
       setLoading(false)
-    }
-
-    return () => {
-      // Cleanup subscriptions
-      supabase.removeAllChannels()
     }
   }, [boardId, user])
 
@@ -120,7 +115,6 @@ export function useKanbanBoard(boardId: string | null) {
       supabase.removeChannel(tasksChannel)
     }
   }
-
   const createDefaultBoard = async (name: string = 'My Kanban Board') => {
     if (!user) throw new Error('User not authenticated')
 
@@ -161,11 +155,33 @@ export function useKanbanBoard(boardId: string | null) {
     }
   }
 
+  const optimisticMoveTask = (taskId: string, sourceColumnId: string, destColumnId: string, destIndex: number) => {
+    setData(prevData => {
+      const newTasks = { ...prevData.tasks }
+      
+      // Find and remove task from source column
+      const sourceColumn = newTasks[sourceColumnId] || []
+      const taskIndex = sourceColumn.findIndex(task => task.id === taskId)
+      if (taskIndex === -1) return prevData // Task not found
+      
+      const [task] = sourceColumn.splice(taskIndex, 1)
+      
+      // Add task to destination column at specified index
+      const destColumn = newTasks[destColumnId] || []
+      destColumn.splice(destIndex, 0, { ...task, column_id: destColumnId })
+      
+      return {
+        ...prevData,
+        tasks: newTasks
+      }
+    })
+  }
   return {
     data,
     loading,
     error,
     refetch: fetchKanbanData,
-    createDefaultBoard
+    createDefaultBoard,
+    optimisticMoveTask
   }
 }
