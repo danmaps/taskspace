@@ -10,13 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Task } from './KanbanBoard';
 
 interface AddTaskDialogProps {
@@ -29,11 +23,11 @@ export const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   isOpen,
   onClose,
   onAddTask,
-}) => {
-  const [formData, setFormData] = useState({
+}) => {  const [formData, setFormData] = useState({
     title: '',
     description: '',
-    priority: 'neither' as Task['priority'],
+    importance: false,
+    urgency: false,
     assignee: '',
     dueDate: '',
     tags: '',
@@ -42,12 +36,11 @@ export const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.title.trim()) return;
-
-    const task: Omit<Task, 'id'> = {
+    if (!formData.title.trim()) return;    const task: Omit<Task, 'id'> = {
       title: formData.title,
       description: formData.description || undefined,
-      priority: formData.priority,
+      importance: formData.importance,
+      urgency: formData.urgency,
       assignee: formData.assignee || undefined,
       dueDate: formData.dueDate || undefined,
       tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()) : undefined,
@@ -57,14 +50,14 @@ export const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     setFormData({
       title: '',
       description: '',
-      priority: 'neither',
+      importance: false,
+      urgency: false,
       assignee: '',
       dueDate: '',
       tags: '',
     });
   };
-
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -97,24 +90,36 @@ export const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
               placeholder="Add task description..."
               className="bg-background/50 border-border/50 min-h-[80px]"
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="priority">Priority (Eisenhower Matrix)</Label>
-            <Select
-              value={formData.priority}
-              onValueChange={(value) => handleChange('priority', value)}
-            >
-              <SelectTrigger className="bg-background/50 border-border/50">
-                <SelectValue placeholder="Select priority..." />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border/50">
-                <SelectItem value="urgent-important">🔴 Urgent & Important</SelectItem>
-                <SelectItem value="important">🟡 Important (Not Urgent)</SelectItem>
-                <SelectItem value="urgent">🟠 Urgent (Not Important)</SelectItem>
-                <SelectItem value="neither">⚪ Neither Urgent nor Important</SelectItem>
-              </SelectContent>
-            </Select>
+          </div>          <div className="space-y-4">
+            <Label>Eisenhower Matrix Classification</Label>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="importance"
+                  checked={formData.importance}
+                  onCheckedChange={(checked) => handleChange('importance', !!checked)}
+                />
+                <Label htmlFor="importance" className="text-sm font-normal">
+                  📊 Important
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="urgency"
+                  checked={formData.urgency}
+                  onCheckedChange={(checked) => handleChange('urgency', !!checked)}
+                />
+                <Label htmlFor="urgency" className="text-sm font-normal">
+                  ⏰ Urgent
+                </Label>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground pl-1">
+              {formData.importance && formData.urgency && "🔴 Urgent & Important (Do First)"}
+              {formData.importance && !formData.urgency && "🟡 Important, Not Urgent (Schedule)"}
+              {!formData.importance && formData.urgency && "🟠 Urgent, Not Important (Delegate)"}
+              {!formData.importance && !formData.urgency && "⚪ Neither Urgent nor Important (Eliminate)"}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
