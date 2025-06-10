@@ -70,7 +70,7 @@
   .kanban-card {
     @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl p-4 shadow-lg;
     @apply transition-all duration-200 hover:shadow-xl hover:bg-card/90;
-    @apply cursor-pointer group;
+    @apply cursor-pointer;
   }
 
   .priority-badge {

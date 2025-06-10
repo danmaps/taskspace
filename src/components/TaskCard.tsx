@@ -44,7 +44,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, columnId, onMoveTask }
   };
 
   return (
-    <div className="kanban-card">
+    <div className="kanban-card group">
       <div className="space-y-3">
         <div className="flex items-start justify-between">
           <h4 className="font-medium text-foreground group-hover:text-primary transition-colors">
