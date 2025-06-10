@@ -8,10 +8,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Task } from './KanbanBoard';
+import { Column } from '@/integrations/supabase/types';
 
 interface TaskCardProps {
   task: Task;
   isDragging?: boolean;
+  isMatrixView?: boolean;
+  kanbanColumn?: Column;
   onUpdateTask?: (taskId: string, updates: Partial<Task>) => Promise<void>;
   onDeleteTask?: (taskId: string) => Promise<void>;
 }
@@ -19,6 +22,8 @@ interface TaskCardProps {
 export const TaskCard: React.FC<TaskCardProps> = ({ 
   task, 
   isDragging = false,
+  isMatrixView = false,
+  kanbanColumn,
   onUpdateTask,
   onDeleteTask 
 }) => {
@@ -98,51 +103,61 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             placeholder="Task title..."
             maxLength={200}
           />          <div className="flex items-center gap-1 ml-2">
-            <Popover open={isPriorityPopoverOpen} onOpenChange={setIsPriorityPopoverOpen}>
-              <PopoverTrigger asChild>
-                <button className={`priority-badge ${getPriorityColor(task.importance, task.urgency)} cursor-pointer hover:opacity-80 transition-opacity`}>
-                  {getPriorityIcon(task.importance, task.urgency)} {getPriorityLabel(task.importance, task.urgency)}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64" align="end">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <h4 className="font-medium text-sm">Priority Settings</h4>
-                    <p className="text-xs text-muted-foreground">
-                      Set the importance and urgency of this task
-                    </p>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="importance"
-                        checked={task.importance}
-                        onCheckedChange={(checked) => handleUpdatePriority(!!checked, task.urgency)}
-                      />
-                      <Label htmlFor="importance" className="text-sm font-normal">
-                        📊 Important
-                      </Label>
+            {!isMatrixView ? (
+              // Standard view: show priority badge
+              <Popover open={isPriorityPopoverOpen} onOpenChange={setIsPriorityPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <button className={`priority-badge ${getPriorityColor(task.importance, task.urgency)} cursor-pointer hover:opacity-80 transition-opacity`}>
+                    {getPriorityIcon(task.importance, task.urgency)} {getPriorityLabel(task.importance, task.urgency)}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64" align="end">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <h4 className="font-medium text-sm">Priority Settings</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Set the importance and urgency of this task
+                      </p>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="urgency"
-                        checked={task.urgency}
-                        onCheckedChange={(checked) => handleUpdatePriority(task.importance, !!checked)}
-                      />
-                      <Label htmlFor="urgency" className="text-sm font-normal">
-                        ⏰ Urgent
-                      </Label>
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="importance"
+                          checked={task.importance}
+                          onCheckedChange={(checked) => handleUpdatePriority(!!checked, task.urgency)}
+                        />
+                        <Label htmlFor="importance" className="text-sm font-normal">
+                          📊 Important
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="urgency"
+                          checked={task.urgency}
+                          onCheckedChange={(checked) => handleUpdatePriority(task.importance, !!checked)}
+                        />
+                        <Label htmlFor="urgency" className="text-sm font-normal">
+                          ⏰ Urgent
+                        </Label>
+                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {task.importance && task.urgency && "🔴 Urgent & Important (Do First)"}
+                      {task.importance && !task.urgency && "🟡 Important, Not Urgent (Schedule)"}
+                      {!task.importance && task.urgency && "🟠 Urgent, Not Important (Delegate)"}
+                      {!task.importance && !task.urgency && "⚪ Neither Urgent nor Important (Eliminate)"}
                     </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {task.importance && task.urgency && "🔴 Urgent & Important (Do First)"}
-                    {task.importance && !task.urgency && "🟡 Important, Not Urgent (Schedule)"}
-                    {!task.importance && task.urgency && "🟠 Urgent, Not Important (Delegate)"}
-                    {!task.importance && !task.urgency && "⚪ Neither Urgent nor Important (Eliminate)"}
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+                </PopoverContent>
+              </Popover>
+            ) : (
+              // Matrix view: show kanban column badge
+              kanbanColumn && (
+                <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                  {kanbanColumn.title}
+                </Badge>
+              )
+            )}
             {isHovering && onDeleteTask && (
               <Button
                 variant="ghost"

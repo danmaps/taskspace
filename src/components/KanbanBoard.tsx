@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Grid3X3, Columns } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { TaskCard } from './TaskCard';
 import { AddTaskDialog } from './AddTaskDialog';
+import { EisenhowerMatrixView } from './EisenhowerMatrixView';
 import { InlineEdit } from '@/components/ui/inline-edit';
 import { KanbanData } from '@/hooks/useKanbanBoard';
 import { useTasks } from '@/hooks/useTasks';
@@ -37,6 +38,19 @@ interface KanbanBoardProps {
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChange, onOptimisticMoveTask }) => {
   const [showAddTask, setShowAddTask] = useState<string | null>(null);
+  
+  // Persist view state in localStorage
+  const [isMatrixView, setIsMatrixView] = useState(() => {
+    const saved = localStorage.getItem('kanban-view-mode');
+    return saved === 'matrix';
+  });
+  
+  // Save view preference to localStorage when it changes
+  const handleViewChange = (newView: boolean) => {
+    setIsMatrixView(newView);
+    localStorage.setItem('kanban-view-mode', newView ? 'matrix' : 'kanban');
+  };
+  
   const { toast } = useToast();
   const { updateBoard } = useBoards();
   const { updateColumn } = useColumns(kanbanData.board?.id || null);
@@ -170,7 +184,39 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
         variant: "destructive",
       });
     }
-  };  const handleDragEnd = async (result: DropResult) => {
+  };  const handleMatrixDragEnd = async (result: DropResult) => {
+    const { destination, source, draggableId } = result;
+
+    if (!destination) {
+      return;
+    }
+
+    if (destination.droppableId === source.droppableId) {
+      return; // Same quadrant, no priority change needed
+    }
+
+    // Map matrix quadrants to importance/urgency values
+    const getQuadrantPriority = (quadrantId: string) => {
+      switch (quadrantId) {
+        case 'urgent-important': return { importance: true, urgency: true };
+        case 'important-not-urgent': return { importance: true, urgency: false };
+        case 'urgent-not-important': return { importance: false, urgency: true };
+        case 'neither': return { importance: false, urgency: false };
+        default: return { importance: false, urgency: false };
+      }
+    };
+
+    const newPriority = getQuadrantPriority(destination.droppableId);
+    
+    // Update the task's importance and urgency
+    try {
+      await handleUpdateTask(draggableId, newPriority);
+    } catch (error) {
+      // Error already handled in handleUpdateTask
+    }
+  };
+
+  const handleDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
     if (!destination) {
@@ -231,95 +277,130 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
       </div>
     );
   }
-
-  return (    <div className="flex-1 p-6 overflow-hidden">
-      <div className="mb-6">
-        <InlineEdit
-          value={kanbanData.board.name}
-          onSave={handleBoardTitleEdit}
-          className="text-3xl font-bold text-gradient mb-2 hover:bg-muted/30 rounded px-2 py-1 -mx-2 -my-1"
-          placeholder="Board title..."
-          maxLength={100}
-        />
-        {/* <p className="text-muted-foreground">Organize your tasks with the Eisenhower Matrix</p> */}
+  return (
+    <div className="flex-1 p-6 overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex-1">
+          <InlineEdit
+            value={kanbanData.board.name}
+            onSave={handleBoardTitleEdit}
+            className="text-3xl font-bold text-gradient mb-2 hover:bg-muted/30 rounded px-2 py-1 -mx-2 -my-1"
+            placeholder="Board title..."
+            maxLength={100}
+          />
+        </div>
+          {/* View Toggle */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant={!isMatrixView ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleViewChange(false)}
+            className="gap-2"
+          >
+            <Columns className="h-4 w-4" />
+            Kanban
+          </Button>
+          <Button
+            variant={isMatrixView ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleViewChange(true)}
+            className="gap-2"
+          >
+            <Grid3X3 className="h-4 w-4" />
+            Matrix
+          </Button>
+        </div>
       </div>
 
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 h-full">
-          {kanbanData.columns.map((column) => {
-            const columnTasks = kanbanData.tasks[column.id] || [];
-            
-            return (              <div key={column.id} className="flex flex-col h-full min-h-0">
-                <div className="column-header mb-4 flex-shrink-0">
-                  <div className="flex items-center justify-between mb-2">
-                    <InlineEdit
-                      value={column.title}
-                      onSave={(newTitle) => handleColumnTitleEdit(column.id, newTitle)}
-                      className="font-semibold text-lg hover:bg-muted/30 rounded px-2 py-1 -mx-2 -my-1"
-                      placeholder="Column title..."
-                      maxLength={50}
-                    />
-                    <Badge variant="secondary" className="text-xs">
-                      {columnTasks.length}
-                    </Badge>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowAddTask(column.id)}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add task
-                  </Button>
-                </div>
-
-                <Droppable droppableId={column.id}>
-                  {(provided, snapshot) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      className={`flex-1 space-y-3 overflow-y-auto p-2 rounded-lg transition-colors ${
-                        snapshot.isDraggingOver 
-                          ? 'bg-primary/5 ring-2 ring-primary/20' 
-                          : 'bg-muted/30'
-                      }`}
-                    >
-                      {columnTasks.map((task, index) => (
-                        <Draggable key={task.id} draggableId={task.id} index={index}>
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                            >                              <TaskCard
-                                task={{
-                                  id: task.id,
-                                  title: task.title,
-                                  description: task.description || undefined,
-                                  importance: task.importance,
-                                  urgency: task.urgency,
-                                  assignee: task.assignee || undefined,
-                                  dueDate: task.due_date || undefined,
-                                  tags: task.tags || []
-                                }}
-                                isDragging={snapshot.isDragging}
-                                onUpdateTask={handleUpdateTask}
-                                onDeleteTask={handleDeleteTask}
-                              />
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
+      {/* Conditional View Rendering */}
+      {isMatrixView ? (
+        <EisenhowerMatrixView
+          tasks={kanbanData.tasks}
+          columns={kanbanData.columns}
+          onDragEnd={handleMatrixDragEnd}
+          onUpdateTask={handleUpdateTask}
+          onDeleteTask={handleDeleteTask}
+        />
+      ) : (
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 h-full">
+            {kanbanData.columns.map((column) => {
+              const columnTasks = kanbanData.tasks[column.id] || [];
+              
+              return (
+                <div key={column.id} className="flex flex-col h-full min-h-0">
+                  <div className="column-header mb-4 flex-shrink-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <InlineEdit
+                        value={column.title}
+                        onSave={(newTitle) => handleColumnTitleEdit(column.id, newTitle)}
+                        className="font-semibold text-lg hover:bg-muted/30 rounded px-2 py-1 -mx-2 -my-1"
+                        placeholder="Column title..."
+                        maxLength={50}
+                      />
+                      <Badge variant="secondary" className="text-xs">
+                        {columnTasks.length}
+                      </Badge>
                     </div>
-                  )}
-                </Droppable>
-              </div>
-            );
-          })}
-        </div>
-      </DragDropContext>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowAddTask(column.id)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add task
+                    </Button>
+                  </div>
+
+                  <Droppable droppableId={column.id}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={`flex-1 space-y-3 overflow-y-auto p-2 rounded-lg transition-colors ${
+                          snapshot.isDraggingOver 
+                            ? 'bg-primary/5 ring-2 ring-primary/20' 
+                            : 'bg-muted/30'
+                        }`}
+                      >
+                        {columnTasks.map((task, index) => (
+                          <Draggable key={task.id} draggableId={task.id} index={index}>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                              >
+                                <TaskCard
+                                  task={{
+                                    id: task.id,
+                                    title: task.title,
+                                    description: task.description || undefined,
+                                    importance: task.importance,
+                                    urgency: task.urgency,
+                                    assignee: task.assignee || undefined,
+                                    dueDate: task.due_date || undefined,
+                                    tags: task.tags || []
+                                  }}
+                                  isDragging={snapshot.isDragging}
+                                  onUpdateTask={handleUpdateTask}
+                                  onDeleteTask={handleDeleteTask}
+                                />
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                </div>
+              );
+            })}
+          </div>
+        </DragDropContext>
+      )}
 
       <AddTaskDialog
         isOpen={showAddTask !== null}
