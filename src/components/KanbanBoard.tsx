@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Grid3X3, Columns } from 'lucide-react';
+import { Plus, Grid3X3, Columns, Table } from 'lucide-react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { TaskCard } from './TaskCard';
 import { AddTaskDialog } from './AddTaskDialog';
 import { EisenhowerMatrixView } from './EisenhowerMatrixView';
+import { TableView } from './TableView';
 import { InlineEdit } from '@/components/ui/inline-edit';
 import { KanbanData } from '@/hooks/useKanbanBoard';
 import { useTasks } from '@/hooks/useTasks';
@@ -39,16 +40,16 @@ interface KanbanBoardProps {
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChange, onOptimisticMoveTask }) => {
   const [showAddTask, setShowAddTask] = useState<string | null>(null);
   
-  // Persist view state in localStorage
-  const [isMatrixView, setIsMatrixView] = useState(() => {
+  // Persist view state in localStorage with support for three views
+  const [viewMode, setViewMode] = useState<'kanban' | 'matrix' | 'table'>(() => {
     const saved = localStorage.getItem('kanban-view-mode');
-    return saved === 'matrix';
+    return (saved === 'matrix' || saved === 'table' || saved === 'kanban') ? saved : 'kanban';
   });
   
   // Save view preference to localStorage when it changes
-  const handleViewChange = (newView: boolean) => {
-    setIsMatrixView(newView);
-    localStorage.setItem('kanban-view-mode', newView ? 'matrix' : 'kanban');
+  const handleViewChange = (newMode: 'kanban' | 'matrix' | 'table') => {
+    setViewMode(newMode);
+    localStorage.setItem('kanban-view-mode', newMode);
   };
   
   const { toast } = useToast();
@@ -288,36 +289,49 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
             placeholder="Board title..."
             maxLength={100}
           />
-        </div>
-          {/* View Toggle */}
+        </div>          {/* View Toggle */}
         <div className="flex items-center gap-2">
           <Button
-            variant={!isMatrixView ? "default" : "outline"}
+            variant={viewMode === 'kanban' ? "default" : "outline"}
             size="sm"
-            onClick={() => handleViewChange(false)}
+            onClick={() => handleViewChange('kanban')}
             className="gap-2"
           >
             <Columns className="h-4 w-4" />
             Kanban
           </Button>
           <Button
-            variant={isMatrixView ? "default" : "outline"}
+            variant={viewMode === 'matrix' ? "default" : "outline"}
             size="sm"
-            onClick={() => handleViewChange(true)}
+            onClick={() => handleViewChange('matrix')}
             className="gap-2"
           >
             <Grid3X3 className="h-4 w-4" />
             Matrix
           </Button>
+          <Button
+            variant={viewMode === 'table' ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleViewChange('table')}
+            className="gap-2"
+          >
+            <Table className="h-4 w-4" />
+            Table
+          </Button>
         </div>
-      </div>
-
-      {/* Conditional View Rendering */}
-      {isMatrixView ? (
+      </div>      {/* Conditional View Rendering */}
+      {viewMode === 'matrix' ? (
         <EisenhowerMatrixView
           tasks={kanbanData.tasks}
           columns={kanbanData.columns}
           onDragEnd={handleMatrixDragEnd}
+          onUpdateTask={handleUpdateTask}
+          onDeleteTask={handleDeleteTask}
+        />
+      ) : viewMode === 'table' ? (
+        <TableView
+          tasks={kanbanData.tasks}
+          columns={kanbanData.columns}
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}
         />

@@ -43,10 +43,9 @@ export const Prototype3D = () => {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Main App
           </Button>
-          <div>
-            <h1 className="text-xl font-bold">3D Task Space Prototype</h1>
+          <div>            <h1 className="text-xl font-bold">3D Task Space Prototype</h1>
             <p className="text-sm text-muted-foreground">
-              Explore your tasks in 3D space - switch between Kanban and Matrix perspectives (Demo Mode)
+              Explore your tasks in 3D space - switch between Kanban, Matrix, and Table perspectives (Demo Mode)
             </p>
           </div>
         </div>
@@ -74,10 +73,9 @@ export const Prototype3D = () => {
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Main App
         </Button>
-        <div>
-          <h1 className="text-xl font-bold">3D Task Space Prototype</h1>
+        <div>          <h1 className="text-xl font-bold">3D Task Space Prototype</h1>
           <p className="text-sm text-muted-foreground">
-            Explore your tasks in 3D space - switch between Kanban and Matrix perspectives
+            Explore your tasks in 3D space - switch between Kanban, Matrix, and Table perspectives
           </p>
         </div>
       </div>

@@ -4,7 +4,7 @@ import { OrbitControls, Text, Box, Html } from '@react-three/drei';
 import { Task } from './KanbanBoard';
 import { Column } from '@/integrations/supabase/types';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Grid3X3, Columns } from 'lucide-react';
+import { RotateCcw, Grid3X3, Columns, Table } from 'lucide-react';
 import * as THREE from 'three';
 
 interface TaskSpaceView3DProps {
@@ -16,19 +16,21 @@ interface Task3DProps {
   task: Task;
   kanbanPos: [number, number, number];
   matrixPos: [number, number, number];
+  tablePos: [number, number, number];
   column?: Column;
-  viewMode: 'kanban' | 'matrix' | 'free';
+  viewMode: 'kanban' | 'matrix' | 'table' | 'free';
 }
 
-const Task3D: React.FC<Task3DProps> = ({ task, kanbanPos, matrixPos, column, viewMode }) => {
+const Task3D: React.FC<Task3DProps> = ({ task, kanbanPos, matrixPos, tablePos, column, viewMode }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
-  // Animate between kanban and matrix positions
+  // Animate between kanban, matrix, and table positions
   useFrame((state) => {
     if (groupRef.current) {
-      const targetPos = viewMode === 'matrix' ? matrixPos : kanbanPos;
+      const targetPos = viewMode === 'matrix' ? matrixPos : 
+                       viewMode === 'table' ? tablePos : kanbanPos;
       groupRef.current.position.lerp(new THREE.Vector3(...targetPos), 0.05);
     }
     
@@ -103,7 +105,7 @@ const Task3D: React.FC<Task3DProps> = ({ task, kanbanPos, matrixPos, column, vie
 };
 
 const CameraController: React.FC<{ 
-  viewMode: 'kanban' | 'matrix' | 'free';
+  viewMode: 'kanban' | 'matrix' | 'table' | 'free';
   onViewChange: () => void;
 }> = ({ viewMode, onViewChange }) => {
   const { camera } = useThree();
@@ -127,6 +129,10 @@ const CameraController: React.FC<{
         break;
       case 'matrix':
         targetPosition = new THREE.Vector3(0, 10, 0);
+        targetLookAt = new THREE.Vector3(0, 0, 0);
+        break;
+      case 'table':
+        targetPosition = new THREE.Vector3(0, 8, 8);
         targetLookAt = new THREE.Vector3(0, 0, 0);
         break;
       default:
@@ -166,7 +172,7 @@ const CameraController: React.FC<{
   );
 };
 
-const TaskSpace3D: React.FC<TaskSpaceView3DProps & { viewMode: 'kanban' | 'matrix' | 'free' }> = ({ tasks, columns, viewMode }) => {
+const TaskSpace3D: React.FC<TaskSpaceView3DProps & { viewMode: 'kanban' | 'matrix' | 'table' | 'free' }> = ({ tasks, columns, viewMode }) => {
   const allTasks = Object.values(tasks).flat();
   
   const taskToColumnMap = useMemo(() => {
@@ -183,7 +189,7 @@ const TaskSpace3D: React.FC<TaskSpaceView3DProps & { viewMode: 'kanban' | 'matri
   }, [tasks, columns]);
 
   const taskPositions = useMemo(() => {
-    const positions: Array<{ task: Task; kanbanPos: [number, number, number]; matrixPos: [number, number, number]; column?: Column }> = [];
+    const positions: Array<{ task: Task; kanbanPos: [number, number, number]; matrixPos: [number, number, number]; tablePos: [number, number, number]; column?: Column }> = [];
     
     // Organize tasks by quadrant for matrix positioning
     const tasksByQuadrant = {
@@ -225,11 +231,21 @@ const TaskSpace3D: React.FC<TaskSpaceView3DProps & { viewMode: 'kanban' | 'matri
       const matrixX = matrixBaseX + (col - tasksPerRow / 2) * 0.5;
       const matrixY = 0;
       const matrixZ = matrixBaseZ + (row - tasksPerRow / 2) * 0.5;
+
+      // Table positioning - arranged in a grid like a spreadsheet
+      const tasksPerTableRow = 5; // 5 tasks per row in table view
+      const tableRow = Math.floor(index / tasksPerTableRow);
+      const tableCol = index % tasksPerTableRow;
+      
+      const tableX = (tableCol - tasksPerTableRow / 2) * 2;
+      const tableY = 0;
+      const tableZ = (tableRow - Math.ceil(allTasks.length / tasksPerTableRow) / 2) * 1.5;
       
       positions.push({
         task,
         kanbanPos: [kanbanX, kanbanY, kanbanZ],
         matrixPos: [matrixX, matrixY, matrixZ],
+        tablePos: [tableX, tableY, tableZ],
         column
       });
     });
@@ -261,14 +277,14 @@ const TaskSpace3D: React.FC<TaskSpaceView3DProps & { viewMode: 'kanban' | 'matri
       <Text position={[0, 0, 4]} fontSize={0.15} color="#888" anchorX={0}>IMPORTANT</Text>
       <Text position={[0, 0, -4]} fontSize={0.15} color="#888" anchorX={0}>NOT IMPORTANT</Text>
       <Text position={[4, 0, 0]} fontSize={0.15} color="#888" anchorX={0}>URGENT</Text>
-      <Text position={[-4, 0, 0]} fontSize={0.15} color="#888" anchorX={0}>NOT URGENT</Text>
-        {/* Tasks */}
-      {taskPositions.map(({ task, kanbanPos, matrixPos, column }) => (
+      <Text position={[-4, 0, 0]} fontSize={0.15} color="#888" anchorX={0}>NOT URGENT</Text>        {/* Tasks */}
+      {taskPositions.map(({ task, kanbanPos, matrixPos, tablePos, column }) => (
         <Task3D
           key={task.id}
           task={task}
           kanbanPos={kanbanPos}
           matrixPos={matrixPos}
+          tablePos={tablePos}
           column={column}
           viewMode={viewMode}
         />
@@ -286,10 +302,10 @@ const TaskSpace3D: React.FC<TaskSpaceView3DProps & { viewMode: 'kanban' | 'matri
 };
 
 export const TaskSpaceView3D: React.FC<TaskSpaceView3DProps> = ({ tasks, columns }) => {
-  const [viewMode, setViewMode] = useState<'kanban' | 'matrix' | 'free'>('free');
+  const [viewMode, setViewMode] = useState<'kanban' | 'matrix' | 'table' | 'free'>('free');
   const [isAnimating, setIsAnimating] = useState(false);
 
-  const handleViewChange = (newMode: 'kanban' | 'matrix' | 'free') => {
+  const handleViewChange = (newMode: 'kanban' | 'matrix' | 'table' | 'free') => {
     if (isAnimating || newMode === viewMode) return;
     setIsAnimating(true);
     setViewMode(newMode);
@@ -309,8 +325,7 @@ export const TaskSpaceView3D: React.FC<TaskSpaceView3DProps> = ({ tasks, columns
           >
             <Columns className="w-4 h-4 mr-1" />
             Kanban View
-          </Button>
-          <Button
+          </Button>          <Button
             variant={viewMode === 'matrix' ? 'default' : 'outline'}
             size="sm"
             onClick={() => handleViewChange('matrix')}
@@ -318,6 +333,15 @@ export const TaskSpaceView3D: React.FC<TaskSpaceView3DProps> = ({ tasks, columns
           >
             <Grid3X3 className="w-4 h-4 mr-1" />
             Matrix View
+          </Button>
+          <Button
+            variant={viewMode === 'table' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => handleViewChange('table')}
+            disabled={isAnimating}
+          >
+            <Table className="w-4 h-4 mr-1" />
+            Table View
           </Button>
           <Button
             variant={viewMode === 'free' ? 'default' : 'outline'}
@@ -350,9 +374,11 @@ export const TaskSpaceView3D: React.FC<TaskSpaceView3DProps> = ({ tasks, columns
           <div className="font-medium mb-1">3D Task Space Prototype</div>
           <div>
             <strong>Kanban View:</strong> Tasks arranged by columns (workflow stages)
+          </div>          <div>
+            <strong>Matrix View:</strong> Tasks positioned by urgency (X) and importance (Z)
           </div>
           <div>
-            <strong>Matrix View:</strong> Tasks positioned by urgency (X) and importance (Z)
+            <strong>Table View:</strong> Tasks arranged in a spreadsheet-like grid
           </div>
           <div>
             <strong>Free View:</strong> Explore the 3D space freely
