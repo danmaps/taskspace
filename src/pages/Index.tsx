@@ -129,8 +129,9 @@ const Index = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigate('/prototype-3d')}
+                onClick={() => navigate(`/prototype-3d?boardId=${activeBoardId}`)}
                 className="text-muted-foreground hover:text-foreground"
+                disabled={!activeBoardId}
               >
                 <Boxes className="h-4 w-4 mr-1" />
                 3D Prototype

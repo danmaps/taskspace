@@ -327,7 +327,9 @@ export const TableView: React.FC<TableViewProps> = ({
                 </Button>
               </TableHead>
               <TableHead>Tags</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
+              <TableHead className="w-[100px]">
+                Actions
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -379,17 +381,13 @@ export const TableView: React.FC<TableViewProps> = ({
                 <TableCell>
                   <Checkbox
                     checked={task.importance}
-                    onCheckedChange={(checked) => 
-                      handleUpdateTask(task.id, 'importance', checked === true)
-                    }
+                    onCheckedChange={(checked) => handleUpdateTask(task.id, 'importance', checked === true)}
                   />
                 </TableCell>
                 <TableCell>
                   <Checkbox
                     checked={task.urgency}
-                    onCheckedChange={(checked) => 
-                      handleUpdateTask(task.id, 'urgency', checked === true)
-                    }
+                    onCheckedChange={(checked) => handleUpdateTask(task.id, 'urgency', checked === true)}
                   />
                 </TableCell>
                 <TableCell>
@@ -401,7 +399,8 @@ export const TableView: React.FC<TableViewProps> = ({
                       </Badge>
                     ))}
                   </div>
-                </TableCell>                <TableCell>
+                </TableCell>
+                <TableCell>
                   <div className="flex gap-1">
                     <Button
                       variant="ghost"
@@ -422,15 +421,14 @@ export const TableView: React.FC<TableViewProps> = ({
                   </div>
                 </TableCell>
               </TableRow>
-            ))}            {sortedTasks.length === 0 && !isAddingTask && (
+            ))}
+            {sortedTasks.length === 0 && !isAddingTask && (
               <TableRow>
                 <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                   No tasks found
                 </TableCell>
               </TableRow>
             )}
-            
-            {/* Add Task Template Row */}
             {isAddingTask ? (
               <TableRow className="bg-muted/30 border-2 border-dashed border-primary/20">
                 <TableCell>
@@ -503,16 +501,14 @@ export const TableView: React.FC<TableViewProps> = ({
                 <TableCell>
                   <Checkbox
                     checked={newTask.importance}
-                    onCheckedChange={(checked) => 
-                      setNewTask(prev => ({ ...prev, importance: checked === true }))
+                    onCheckedChange={(checked) => setNewTask(prev => ({ ...prev, importance: checked === true }))
                     }
                   />
                 </TableCell>
                 <TableCell>
                   <Checkbox
                     checked={newTask.urgency}
-                    onCheckedChange={(checked) => 
-                      setNewTask(prev => ({ ...prev, urgency: checked === true }))
+                    onCheckedChange={(checked) => setNewTask(prev => ({ ...prev, urgency: checked === true }))
                     }
                   />
                 </TableCell>

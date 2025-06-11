@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Text, Box, Html } from '@react-three/drei';
 import { Task } from './KanbanBoard';
@@ -26,79 +26,77 @@ const Task3D: React.FC<Task3DProps> = ({ task, kanbanPos, matrixPos, tablePos, c
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
 
-  // Animate between kanban, matrix, and table positions
+  // Safety check for positions
+  const isValidVec3 = (arr: any): arr is [number, number, number] =>
+    Array.isArray(arr) && 
+    arr.length === 3 && 
+    arr.every((n) => typeof n === 'number' && isFinite(n) && !isNaN(n));
+
+  const safeKanbanPos = isValidVec3(kanbanPos) ? kanbanPos : [0, 0, 0];
+  const safeMatrixPos = isValidVec3(matrixPos) ? matrixPos : [0, 0, 0];
+  const safeTablePos = isValidVec3(tablePos) ? tablePos : [0, 0, 0];
+
   useFrame((state) => {
-    if (groupRef.current) {
-      const targetPos = viewMode === 'matrix' ? matrixPos : 
-                       viewMode === 'table' ? tablePos : kanbanPos;
-      groupRef.current.position.lerp(new THREE.Vector3(...targetPos), 0.05);
-    }
-    
+    if (!groupRef.current) return;
+
+    const targetPos = 
+      viewMode === 'matrix' ? safeMatrixPos :
+      viewMode === 'table' ? safeTablePos :
+      safeKanbanPos;
+
+    groupRef.current.position.lerp(new THREE.Vector3(...targetPos), 0.05);
+
     if (meshRef.current && hovered) {
       meshRef.current.rotation.y += 0.01;
     }
   });
 
   const getTaskColor = () => {
-    if (task.urgency && task.importance) return '#ef4444'; // red
-    if (!task.urgency && task.importance) return '#eab308'; // yellow  
-    if (task.urgency && !task.importance) return '#f97316'; // orange
-    return '#6b7280'; // gray
+    if (task.urgency && task.importance) return '#ef4444';
+    if (!task.urgency && task.importance) return '#eab308';
+    if (task.urgency && !task.importance) return '#f97316';
+    return '#6b7280';
   };
+
   return (
-    <group ref={groupRef} position={kanbanPos}>
-      <Box
+    <group ref={groupRef} position={safeKanbanPos}>
+      <mesh
         ref={meshRef}
-        args={[1.5, 0.2, 1]}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
+        castShadow
+        receiveShadow
       >
-        <meshStandardMaterial 
-          color={getTaskColor()} 
-          transparent 
+        <boxGeometry args={[1.5, 0.2, 1]} />
+        <meshStandardMaterial
+          color={getTaskColor()}
+          transparent
           opacity={0.8}
           roughness={0.3}
           metalness={0.1}
         />
-      </Box><Text
+      </mesh>
+      <Text
         position={[0, 0.2, 0]}
         fontSize={0.15}
         color="white"
-        anchorX={0}
+        anchorX="center"
         anchorY="middle"
         maxWidth={1.4}
         textAlign="center"
       >
         {task.title}
-      </Text>      {column && (
+      </Text>
+      {column && (
         <Text
           position={[0, -0.2, 0]}
           fontSize={0.08}
           color="#aaa"
-          anchorX={0}
+          anchorX="center"
           anchorY="middle"
         >
           {column.title}
         </Text>
-      )}
-      
-      {hovered && (
-        <Html position={[0, 0.8, 0]} center>
-          <div className="bg-black/80 text-white p-2 rounded-lg max-w-48 text-sm">
-            <div className="font-semibold">{task.title}</div>
-            {task.description && (
-              <div className="text-xs opacity-80 mt-1">{task.description}</div>
-            )}
-            <div className="flex gap-1 mt-1">
-              {task.urgency && (
-                <span className="bg-red-500/20 text-red-300 px-1 rounded text-xs">Urgent</span>
-              )}
-              {task.importance && (
-                <span className="bg-yellow-500/20 text-yellow-300 px-1 rounded text-xs">Important</span>
-              )}
-            </div>
-          </div>
-        </Html>
       )}
     </group>
   );
@@ -302,96 +300,109 @@ const TaskSpace3D: React.FC<TaskSpaceView3DProps & { viewMode: 'kanban' | 'matri
 };
 
 export const TaskSpaceView3D: React.FC<TaskSpaceView3DProps> = ({ tasks, columns }) => {
-  const [viewMode, setViewMode] = useState<'kanban' | 'matrix' | 'table' | 'free'>('free');
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [viewMode, setViewMode] = useState<'kanban' | 'matrix' | 'table' | 'free'>('kanban');
+  const [error, setError] = useState<string | null>(null);
 
-  const handleViewChange = (newMode: 'kanban' | 'matrix' | 'table' | 'free') => {
-    if (isAnimating || newMode === viewMode) return;
-    setIsAnimating(true);
-    setViewMode(newMode);
-  };
+  // Calculate task positions based on their column and status
+  const taskComponents = useMemo(() => {
+    const result: JSX.Element[] = [];
+    try {
+      Object.entries(tasks).forEach(([columnId, columnTasks], columnIndex) => {
+        const column = columns.find(c => c.id === columnId);
+        if (!column) {
+          console.warn('Column not found for tasks:', columnId, columnTasks);
+          return;
+        }
+
+        columnTasks.forEach((task, taskIndex) => {
+          // Kanban view: Tasks are arranged in columns
+          const kanbanPos: [number, number, number] = [
+            columnIndex * 4 - (columns.length * 2),  // x: spread columns horizontally
+            taskIndex * 0.5,                         // y: stack tasks vertically
+            0                                        // z: all in same plane
+          ];
+
+          // Matrix view: Position based on urgency/importance
+          const matrixPos: [number, number, number] = [
+            task.urgency ? 4 : -4,     // x: urgent vs not urgent
+            0,                         // y: all same height
+            task.importance ? 4 : -4   // z: important vs not important
+          ];
+
+          // Table view: Tasks in a grid
+          const tablePos: [number, number, number] = [
+            columnIndex * 2,           // x: columns in grid
+            0,                         // y: all same height
+            taskIndex * 2              // z: rows in grid
+          ];
+
+          result.push(
+            <Task3D
+              key={task.id}
+              task={task}
+              kanbanPos={kanbanPos}
+              matrixPos={matrixPos}
+              tablePos={tablePos}
+              column={column}
+              viewMode={viewMode}
+            />
+          );
+        });
+      });
+    } catch (err) {
+      console.error('Error creating task components:', err);
+      setError(err instanceof Error ? err.message : 'Error creating task components');
+    }
+    return result;
+  }, [tasks, columns, viewMode]);
+
+  if (error) {
+    return (
+      <div className="absolute top-4 left-4 z-50 bg-red-500 text-white p-4 rounded">
+        Error: {error}
+      </div>
+    );
+  }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Controls */}
-      <div className="flex items-center gap-2 p-4 border-b">
-        <h2 className="text-lg font-semibold">3D Task Space</h2>
-        <div className="flex gap-2 ml-auto">
-          <Button
-            variant={viewMode === 'kanban' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleViewChange('kanban')}
-            disabled={isAnimating}
-          >
-            <Columns className="w-4 h-4 mr-1" />
-            Kanban View
-          </Button>          <Button
-            variant={viewMode === 'matrix' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleViewChange('matrix')}
-            disabled={isAnimating}
-          >
-            <Grid3X3 className="w-4 h-4 mr-1" />
-            Matrix View
-          </Button>
-          <Button
-            variant={viewMode === 'table' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleViewChange('table')}
-            disabled={isAnimating}
-          >
-            <Table className="w-4 h-4 mr-1" />
-            Table View
-          </Button>
-          <Button
-            variant={viewMode === 'free' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => handleViewChange('free')}
-            disabled={isAnimating}
-          >
-            <RotateCcw className="w-4 h-4 mr-1" />
-            Free View
-          </Button>
-        </div>
+    <>
+      <div className="absolute top-4 right-4 z-50 flex gap-2">
+        <Button
+          variant={viewMode === 'kanban' ? "default" : "outline"}
+          size="sm"
+          onClick={() => setViewMode('kanban')}
+        >
+          Kanban
+        </Button>
+        <Button
+          variant={viewMode === 'matrix' ? "default" : "outline"}
+          size="sm"
+          onClick={() => setViewMode('matrix')}
+        >
+          Matrix
+        </Button>
+        <Button
+          variant={viewMode === 'table' ? "default" : "outline"}
+          size="sm"
+          onClick={() => setViewMode('table')}
+        >
+          Table
+        </Button>
       </div>
 
-      {/* 3D Canvas */}
-      <div className="flex-1 bg-gradient-to-b from-slate-900 to-slate-800">
-        <Canvas
-          camera={{ position: [5, 5, 5], fov: 60 }}
-          style={{ width: '100%', height: '100%' }}
-        >          <CameraController 
-            viewMode={viewMode} 
-            onViewChange={() => setIsAnimating(false)}
-          />
-          <TaskSpace3D tasks={tasks} columns={columns} viewMode={viewMode} />
-        </Canvas>
-      </div>
-
-      {/* Info Panel */}
-      <div className="p-4 bg-muted/50 border-t">
-        <div className="text-sm text-muted-foreground">
-          <div className="font-medium mb-1">3D Task Space Prototype</div>
-          <div>
-            <strong>Kanban View:</strong> Tasks arranged by columns (workflow stages)
-          </div>          <div>
-            <strong>Matrix View:</strong> Tasks positioned by urgency (X) and importance (Z)
-          </div>
-          <div>
-            <strong>Table View:</strong> Tasks arranged in a spreadsheet-like grid
-          </div>
-          <div>
-            <strong>Free View:</strong> Explore the 3D space freely
-          </div>
-          <div className="mt-2 text-xs">
-            <strong>Colors:</strong> 
-            <span className="text-red-400 ml-1">Red (Urgent + Important)</span>
-            <span className="text-yellow-400 ml-1">Yellow (Important)</span>
-            <span className="text-orange-400 ml-1">Orange (Urgent)</span>
-            <span className="text-gray-400 ml-1">Gray (Neither)</span>
-          </div>
-        </div>
-      </div>
-    </div>
+      <Canvas shadows camera={{ position: [0, 5, 10], fov: 75 }}>
+        <ambientLight intensity={0.5} />
+        <pointLight position={[10, 10, 10]} />
+        <directionalLight
+          position={[0, 8, 5]}
+          intensity={1}
+          castShadow
+          shadow-mapSize={1024}
+        />
+        {taskComponents}
+        <OrbitControls enableDamping={false} />
+        <gridHelper args={[100, 100, '#666666', '#222222']} />
+      </Canvas>
+    </>
   );
 };

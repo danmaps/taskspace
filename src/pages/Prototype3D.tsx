@@ -3,12 +3,18 @@ import { useKanbanBoard } from '@/hooks/useKanbanBoard';
 import { TaskSpaceView3D } from '@/components/TaskSpaceView3D';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { demoTasks, demoColumns } from '@/data/demoData';
+
+function useQuery() {
+  return new URLSearchParams(useLocation().search);
+}
 
 export const Prototype3D = () => {
   const navigate = useNavigate();
-  const { data, loading, error } = useKanbanBoard(null); // Pass null for board ID to get default data
+  const query = useQuery();
+  const boardId = query.get('boardId');
+  const { data, loading, error } = useKanbanBoard(boardId); // Use boardId from query string
 
   if (loading) {
     return (
