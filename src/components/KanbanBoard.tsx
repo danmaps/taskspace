@@ -39,6 +39,7 @@ interface KanbanBoardProps {
 
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChange, onOptimisticMoveTask }) => {
   const [showAddTask, setShowAddTask] = useState<string | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   
   // Persist view state in localStorage with support for three views
   const [viewMode, setViewMode] = useState<'kanban' | 'matrix' | 'table'>(() => {
@@ -60,8 +61,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
   const taskHooks = kanbanData.columns.reduce((acc, column) => {
     acc[column.id] = useTasks(column.id);
     return acc;
-  }, {} as Record<string, ReturnType<typeof useTasks>>);
-  const handleAddTask = async (columnId: string, task: Omit<Task, 'id'>) => {
+  }, {} as Record<string, ReturnType<typeof useTasks>>);  const handleAddTask = async (columnId: string, task: Omit<Task, 'id'>) => {
     const taskHook = taskHooks[columnId];
     if (!taskHook) return;
 
@@ -88,6 +88,14 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
         variant: "destructive",
       });
     }
+  };
+
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task);
+  };
+
+  const handleCloseEditDialog = () => {
+    setEditingTask(null);
   };
 
   const handleBoardTitleEdit = async (newTitle: string) => {
@@ -320,20 +328,21 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
           </Button>
         </div>
       </div>      {/* Conditional View Rendering */}
-      {viewMode === 'matrix' ? (
-        <EisenhowerMatrixView
+      {viewMode === 'matrix' ? (        <EisenhowerMatrixView
           tasks={kanbanData.tasks}
           columns={kanbanData.columns}
           onDragEnd={handleMatrixDragEnd}
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}
-        />
-      ) : viewMode === 'table' ? (
+          onEditTask={handleEditTask}
+        />) : viewMode === 'table' ? (
         <TableView
           tasks={kanbanData.tasks}
           columns={kanbanData.columns}
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}
+          onAddTask={handleAddTask}
+          onEditTask={handleEditTask}
         />
       ) : (
         <DragDropContext onDragEnd={handleDragEnd}>
@@ -385,8 +394,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
                                 {...provided.dragHandleProps}
-                              >
-                                <TaskCard
+                              >                                <TaskCard
                                   task={{
                                     id: task.id,
                                     title: task.title,
@@ -400,6 +408,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
                                   isDragging={snapshot.isDragging}
                                   onUpdateTask={handleUpdateTask}
                                   onDeleteTask={handleDeleteTask}
+                                  onEditTask={handleEditTask}
                                 />
                               </div>
                             )}
@@ -414,12 +423,15 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
             })}
           </div>
         </DragDropContext>
-      )}
-
-      <AddTaskDialog
-        isOpen={showAddTask !== null}
-        onClose={() => setShowAddTask(null)}
+      )}      <AddTaskDialog
+        isOpen={showAddTask !== null || editingTask !== null}
+        onClose={() => {
+          setShowAddTask(null);
+          setEditingTask(null);
+        }}
         onAddTask={(task) => showAddTask && handleAddTask(showAddTask, task)}
+        onUpdateTask={handleUpdateTask}
+        editingTask={editingTask}
       />
     </div>
   );

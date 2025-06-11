@@ -17,6 +17,7 @@ interface TaskCardProps {
   kanbanColumn?: Column;
   onUpdateTask?: (taskId: string, updates: Partial<Task>) => Promise<void>;
   onDeleteTask?: (taskId: string) => Promise<void>;
+  onEditTask?: (task: Task) => void;
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({ 
@@ -25,7 +26,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   isMatrixView = false,
   kanbanColumn,
   onUpdateTask,
-  onDeleteTask 
+  onDeleteTask,
+  onEditTask
 }) => {
   const [isHovering, setIsHovering] = useState(false);
   const [isPriorityPopoverOpen, setIsPriorityPopoverOpen] = useState(false);
@@ -156,17 +158,30 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
                   {kanbanColumn.title}
                 </Badge>
-              )
-            )}
-            {isHovering && onDeleteTask && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleDelete}
-                className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
+              )            )}
+            {isHovering && (
+              <div className="flex gap-1">
+                {onEditTask && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onEditTask(task)}
+                    className="h-6 w-6 p-0 hover:bg-muted hover:text-foreground"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                  </Button>
+                )}
+                {onDeleteTask && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDelete}
+                    className="h-6 w-6 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </div>

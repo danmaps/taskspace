@@ -19,16 +19,24 @@ import {
   User, 
   Tag,
   Edit2,
-  Trash2
+  Trash2,
+  Plus,
+  Check,
+  X
 } from 'lucide-react';
 import { InlineEdit } from '@/components/ui/inline-edit';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface TableViewProps {
   tasks: Record<string, Task[]>;
   columns: Column[];
   onUpdateTask?: (taskId: string, updates: Partial<Task>) => Promise<void>;
   onDeleteTask?: (taskId: string) => Promise<void>;
+  onAddTask?: (columnId: string, task: Omit<Task, 'id'>) => Promise<void>;
+  onEditTask?: (task: Task) => void;
 }
 
 type SortField = 'title' | 'status' | 'importance' | 'urgency' | 'assignee' | 'dueDate';
@@ -38,10 +46,23 @@ export const TableView: React.FC<TableViewProps> = ({
   tasks,
   columns,
   onUpdateTask,
-  onDeleteTask
+  onDeleteTask,
+  onAddTask,
+  onEditTask
 }) => {
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [isAddingTask, setIsAddingTask] = useState(false);
+  const [newTask, setNewTask] = useState({
+    title: '',
+    description: '',
+    status: '',
+    importance: false,
+    urgency: false,
+    assignee: '',
+    dueDate: '',
+    tags: ''
+  });
 
   const getStatusColor = (status: string) => {
     // Simple color mapping - you can enhance this
@@ -159,10 +180,81 @@ export const TableView: React.FC<TableViewProps> = ({
       return <Badge variant="outline" className="text-xs">Normal</Badge>;
     }
   };
-
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const handleStartAddingTask = () => {
+    setIsAddingTask(true);
+    setNewTask({
+      title: '',
+      description: '',
+      status: columns[0]?.id || '',
+      importance: false,
+      urgency: false,
+      assignee: '',
+      dueDate: '',
+      tags: ''
+    });
+  };
+
+  const handleCancelAddingTask = () => {
+    setIsAddingTask(false);
+    setNewTask({
+      title: '',
+      description: '',
+      status: '',
+      importance: false,
+      urgency: false,
+      assignee: '',
+      dueDate: '',
+      tags: ''
+    });
+  };
+
+  const handleSubmitNewTask = async () => {
+    if (!newTask.title.trim() || !newTask.status || !onAddTask) return;
+
+    try {
+      const taskToCreate: Omit<Task, 'id'> = {
+        title: newTask.title.trim(),
+        description: newTask.description.trim() || undefined,
+        importance: newTask.importance,
+        urgency: newTask.urgency,
+        assignee: newTask.assignee.trim() || undefined,
+        dueDate: newTask.dueDate || undefined,
+        tags: newTask.tags.trim() ? newTask.tags.split(',').map(tag => tag.trim()).filter(Boolean) : []
+      };
+
+      await onAddTask(newTask.status, taskToCreate);
+      handleCancelAddingTask();
+    } catch (error) {
+      console.error('Failed to create task:', error);
+    }
+  };
+
+  const getPriorityFromFlags = (importance: boolean, urgency: boolean) => {
+    if (urgency && importance) return 'critical';
+    if (importance) return 'important';
+    if (urgency) return 'urgent';
+    return 'normal';
+  };
+
+  const setPriorityFlags = (priority: string) => {
+    switch (priority) {
+      case 'critical':
+        setNewTask(prev => ({ ...prev, importance: true, urgency: true }));
+        break;
+      case 'important':
+        setNewTask(prev => ({ ...prev, importance: true, urgency: false }));
+        break;
+      case 'urgent':
+        setNewTask(prev => ({ ...prev, importance: false, urgency: true }));
+        break;
+      default:
+        setNewTask(prev => ({ ...prev, importance: false, urgency: false }));
+    }
   };
 
   return (
@@ -309,9 +401,16 @@ export const TableView: React.FC<TableViewProps> = ({
                       </Badge>
                     ))}
                   </div>
-                </TableCell>
-                <TableCell>
+                </TableCell>                <TableCell>
                   <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEditTask && onEditTask(task)}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -323,11 +422,145 @@ export const TableView: React.FC<TableViewProps> = ({
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
-            {sortedTasks.length === 0 && (
+            ))}            {sortedTasks.length === 0 && !isAddingTask && (
               <TableRow>
                 <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                   No tasks found
+                </TableCell>
+              </TableRow>
+            )}
+            
+            {/* Add Task Template Row */}
+            {isAddingTask ? (
+              <TableRow className="bg-muted/30 border-2 border-dashed border-primary/20">
+                <TableCell>
+                  <div className="space-y-2">
+                    <Input
+                      value={newTask.title}
+                      onChange={(e) => setNewTask(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="Task title..."
+                      className="font-medium"
+                      autoFocus
+                    />
+                    <Textarea
+                      value={newTask.description}
+                      onChange={(e) => setNewTask(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Add description..."
+                      className="text-sm min-h-[60px]"
+                      rows={2}
+                    />
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Select
+                    value={newTask.status}
+                    onValueChange={(value) => setNewTask(prev => ({ ...prev, status: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {columns.map((column) => (
+                        <SelectItem key={column.id} value={column.id}>
+                          {column.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell>
+                  <Select
+                    value={getPriorityFromFlags(newTask.importance, newTask.urgency)}
+                    onValueChange={setPriorityFlags}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normal">Normal</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="important">Important</SelectItem>
+                      <SelectItem value="critical">Critical</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell>
+                  <Input
+                    value={newTask.assignee}
+                    onChange={(e) => setNewTask(prev => ({ ...prev, assignee: e.target.value }))}
+                    placeholder="Assign to..."
+                    className="text-sm"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="date"
+                    value={newTask.dueDate}
+                    onChange={(e) => setNewTask(prev => ({ ...prev, dueDate: e.target.value }))}
+                    className="text-sm"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Checkbox
+                    checked={newTask.importance}
+                    onCheckedChange={(checked) => 
+                      setNewTask(prev => ({ ...prev, importance: checked === true }))
+                    }
+                  />
+                </TableCell>
+                <TableCell>
+                  <Checkbox
+                    checked={newTask.urgency}
+                    onCheckedChange={(checked) => 
+                      setNewTask(prev => ({ ...prev, urgency: checked === true }))
+                    }
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    value={newTask.tags}
+                    onChange={(e) => setNewTask(prev => ({ ...prev, tags: e.target.value }))}
+                    placeholder="tag1, tag2, tag3"
+                    className="text-sm"
+                  />
+                </TableCell>
+                <TableCell>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={handleSubmitNewTask}
+                      disabled={!newTask.title.trim() || !newTask.status}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCancelAddingTask}
+                      className="h-8 w-8 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              <TableRow className="hover:bg-muted/30 border-2 border-dashed border-muted-foreground/20">
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-4">
+                  <Button
+                    variant="ghost"
+                    onClick={handleStartAddingTask}
+                    className="w-full gap-2 text-muted-foreground hover:text-foreground"
+                    disabled={!onAddTask}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add new task
+                  </Button>
+                </TableCell>
+                <TableCell>
+                  {/* Empty cell for actions column */}
                 </TableCell>
               </TableRow>
             )}

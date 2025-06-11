@@ -11,6 +11,7 @@ interface EisenhowerMatrixViewProps {
   onDragEnd: (result: DropResult) => void;
   onUpdateTask?: (taskId: string, updates: Partial<Task>) => Promise<void>;
   onDeleteTask?: (taskId: string) => Promise<void>;
+  onEditTask?: (task: Task) => void;
 }
 
 export const EisenhowerMatrixView: React.FC<EisenhowerMatrixViewProps> = ({
@@ -18,7 +19,8 @@ export const EisenhowerMatrixView: React.FC<EisenhowerMatrixViewProps> = ({
   columns,
   onDragEnd,
   onUpdateTask,
-  onDeleteTask
+  onDeleteTask,
+  onEditTask
 }) => {
   // Get all tasks and organize by importance/urgency
   const allTasks = Object.values(tasks).flat();
@@ -118,8 +120,7 @@ export const EisenhowerMatrixView: React.FC<EisenhowerMatrixViewProps> = ({
                           <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                          >
+                            {...provided.dragHandleProps}                          >
                             <TaskCard
                               task={task}
                               isDragging={snapshot.isDragging}
@@ -127,6 +128,7 @@ export const EisenhowerMatrixView: React.FC<EisenhowerMatrixViewProps> = ({
                               kanbanColumn={taskToColumnMap.get(task.id)}
                               onUpdateTask={onUpdateTask}
                               onDeleteTask={onDeleteTask}
+                              onEditTask={onEditTask}
                             />
                           </div>
                         )}
@@ -206,8 +208,7 @@ export const EisenhowerMatrixView: React.FC<EisenhowerMatrixViewProps> = ({
                           <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                          >
+                            {...provided.dragHandleProps}                          >
                             <TaskCard
                               task={task}
                               isDragging={snapshot.isDragging}
@@ -215,6 +216,7 @@ export const EisenhowerMatrixView: React.FC<EisenhowerMatrixViewProps> = ({
                               kanbanColumn={taskToColumnMap.get(task.id)}
                               onUpdateTask={onUpdateTask}
                               onDeleteTask={onDeleteTask}
+                              onEditTask={onEditTask}
                             />
                           </div>
                         )}
@@ -251,14 +253,14 @@ export const EisenhowerMatrixView: React.FC<EisenhowerMatrixViewProps> = ({
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                          >
-                            <TaskCard
+                          >                            <TaskCard
                               task={task}
                               isDragging={snapshot.isDragging}
                               isMatrixView={true}
                               kanbanColumn={taskToColumnMap.get(task.id)}
                               onUpdateTask={onUpdateTask}
                               onDeleteTask={onDeleteTask}
+                              onEditTask={onEditTask}
                             />
                           </div>
                         )}

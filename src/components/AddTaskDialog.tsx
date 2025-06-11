@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -17,13 +17,18 @@ interface AddTaskDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onAddTask: (task: Omit<Task, 'id'>) => void;
+  onUpdateTask?: (taskId: string, updates: Partial<Task>) => Promise<void>;
+  editingTask?: Task | null;
 }
 
 export const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
   isOpen,
   onClose,
   onAddTask,
-}) => {  const [formData, setFormData] = useState({
+  onUpdateTask,
+  editingTask,
+}) => {
+  const [formData, setFormData] = useState({
     title: '',
     description: '',
     importance: false,
@@ -33,30 +38,73 @@ export const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     tags: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const isEditing = !!editingTask;
+
+  // Reset form when dialog opens/closes or when switching between add/edit modes
+  useEffect(() => {
+    if (isOpen) {
+      if (editingTask) {
+        // Populate form with existing task data
+        setFormData({
+          title: editingTask.title,
+          description: editingTask.description || '',
+          importance: editingTask.importance,
+          urgency: editingTask.urgency,
+          assignee: editingTask.assignee || '',
+          dueDate: editingTask.dueDate || '',
+          tags: editingTask.tags ? editingTask.tags.join(', ') : '',
+        });
+      } else {
+        // Reset form for new task
+        setFormData({
+          title: '',
+          description: '',
+          importance: false,
+          urgency: false,
+          assignee: '',
+          dueDate: '',
+          tags: '',
+        });
+      }
+    }
+  }, [isOpen, editingTask]);
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.title.trim()) return;    const task: Omit<Task, 'id'> = {
-      title: formData.title,
-      description: formData.description || undefined,
-      importance: formData.importance,
-      urgency: formData.urgency,
-      assignee: formData.assignee || undefined,
-      dueDate: formData.dueDate || undefined,
-      tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()) : undefined,
-    };
+    if (!formData.title.trim()) return;
 
-    onAddTask(task);
-    setFormData({
-      title: '',
-      description: '',
-      importance: false,
-      urgency: false,
-      assignee: '',
-      dueDate: '',
-      tags: '',
-    });
+    if (isEditing && editingTask && onUpdateTask) {
+      // Update existing task
+      const updates: Partial<Task> = {
+        title: formData.title,
+        description: formData.description || undefined,
+        importance: formData.importance,
+        urgency: formData.urgency,
+        assignee: formData.assignee || undefined,
+        dueDate: formData.dueDate || undefined,
+        tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : undefined,
+      };
+
+      try {
+        await onUpdateTask(editingTask.id, updates);
+        onClose();
+      } catch (error) {
+        console.error('Failed to update task:', error);
+      }
+    } else {
+      // Create new task
+      const task: Omit<Task, 'id'> = {
+        title: formData.title,
+        description: formData.description || undefined,
+        importance: formData.importance,
+        urgency: formData.urgency,
+        assignee: formData.assignee || undefined,
+        dueDate: formData.dueDate || undefined,
+        tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : undefined,
+      };      onAddTask(task);
+    }
   };
+
   const handleChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
@@ -65,10 +113,12 @@ export const AddTaskDialog: React.FC<AddTaskDialogProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md bg-card/95 backdrop-blur-sm border-border/50">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">Add New Task</DialogTitle>
+          <DialogTitle className="text-xl font-semibold">
+            {isEditing ? 'Edit Task' : 'Add New Task'}
+          </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">          <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="space-y-4"><div className="space-y-2">
             <Label htmlFor="title">Task Title *</Label>
             <Input
               id="title"
