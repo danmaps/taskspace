@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Plus, Grid3X3, Columns, Table } from 'lucide-react';
@@ -40,7 +40,21 @@ interface KanbanBoardProps {
 export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChange, onOptimisticMoveTask }) => {
   const [showAddTask, setShowAddTask] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [localTasks, setLocalTasks] = useState<Record<string, Task[]>>(kanbanData.tasks);
   
+  // Update local tasks when kanbanData changes (initial load and background refreshes)
+  useEffect(() => {
+    setLocalTasks(kanbanData.tasks);
+  }, [kanbanData.tasks]);
+
+  // Helper function to update local tasks
+  const updateLocalTasks = (columnId: string, updatedTasks: Task[]) => {
+    setLocalTasks(prev => ({
+      ...prev,
+      [columnId]: updatedTasks
+    }));
+  };
+
   // Persist view state in localStorage with support for three views
   const [viewMode, setViewMode] = useState<'kanban' | 'matrix' | 'table'>(() => {
     const saved = localStorage.getItem('kanban-view-mode');
@@ -65,7 +79,26 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
     const taskHook = taskHooks[columnId];
     if (!taskHook) return;
 
-    try {      await taskHook.createTask({
+    try {
+      // Generate a temporary ID for optimistic update
+      const tempId = `temp-${Date.now()}`;
+      const optimisticTask: Task = {
+        id: tempId,
+        title: task.title,
+        description: task.description,
+        importance: task.importance,
+        urgency: task.urgency,
+        assignee: task.assignee,
+        dueDate: task.dueDate,
+        tags: task.tags || []
+      };
+
+      // Optimistically update local state
+      updateLocalTasks(columnId, [...(localTasks[columnId] || []), optimisticTask]);
+      setShowAddTask(null);
+
+      // Perform the actual database operation
+      const createdTask = await taskHook.createTask({
         title: task.title,
         description: task.description || null,
         importance: task.importance,
@@ -73,15 +106,32 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
         assignee: task.assignee || null,
         due_date: task.dueDate || null,
         tags: task.tags || []
-      });
-      
-      setShowAddTask(null);
+      });      // Update local state with the real task ID
+      if (createdTask) {
+        setLocalTasks(prev => ({
+          ...prev,
+          [columnId]: prev[columnId].map(t => 
+            t.id === tempId ? {
+              id: createdTask.id,
+              title: createdTask.title,
+              description: createdTask.description || undefined,
+              importance: createdTask.importance,
+              urgency: createdTask.urgency,
+              assignee: createdTask.assignee || undefined,
+              dueDate: createdTask.due_date || undefined,
+              tags: createdTask.tags || []
+            } : t
+          )
+        }));
+      }
+
       toast({
         title: "Task created",
         description: "Your task has been added successfully.",
       });
-      onDataChange?.(); // Trigger data refresh
     } catch (error) {
+      // Revert optimistic update on error
+      updateLocalTasks(columnId, localTasks[columnId].filter(t => !t.id.startsWith('temp-')));
       toast({
         title: "Error",
         description: "Failed to create task. Please try again.",
@@ -137,8 +187,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
 
   const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
     // Find which column this task belongs to
-    const columnId = Object.keys(kanbanData.tasks).find(colId => 
-      kanbanData.tasks[colId]?.some(task => task.id === taskId)
+    const columnId = Object.keys(localTasks).find(colId => 
+      localTasks[colId]?.some(task => task.id === taskId)
     );
     
     if (!columnId) return;
@@ -146,7 +196,13 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
     const taskHook = taskHooks[columnId];
     if (!taskHook) return;
 
-    try {      // Convert Task interface to database format
+    try {
+      // Optimistically update local state
+      updateLocalTasks(columnId, localTasks[columnId].map(task =>
+        task.id === taskId ? { ...task, ...updates } : task
+      ));
+
+      // Convert Task interface to database format
       const dbUpdates: any = {};
       if (updates.title !== undefined) dbUpdates.title = updates.title;
       if (updates.description !== undefined) dbUpdates.description = updates.description || null;
@@ -154,13 +210,17 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
       if (updates.urgency !== undefined) dbUpdates.urgency = updates.urgency;
       if (updates.assignee !== undefined) dbUpdates.assignee = updates.assignee || null;
       if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate || null;
-      if (updates.tags !== undefined) dbUpdates.tags = updates.tags || [];      await taskHook.updateTask(taskId, dbUpdates);
+      if (updates.tags !== undefined) dbUpdates.tags = updates.tags || [];
+
+      // Perform the actual database update
+      await taskHook.updateTask(taskId, dbUpdates);
+      
       toast({
         title: "Task updated",
         description: "Task has been updated successfully.",
-      });
-      onDataChange?.(); // Trigger data refresh
-    } catch (error) {
+      });    } catch (error) {
+      // Revert optimistic update on error by restoring original state
+      setLocalTasks(kanbanData.tasks);
       toast({
         title: "Error",
         description: "Failed to update task. Please try again.",
@@ -171,29 +231,39 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    // Find which column this task belongs to
-    const columnId = Object.keys(kanbanData.tasks).find(colId => 
-      kanbanData.tasks[colId]?.some(task => task.id === taskId)
+    const columnId = Object.keys(localTasks).find(colId => 
+      localTasks[colId]?.some(task => task.id === taskId)
     );
     
     if (!columnId) return;
     
     const taskHook = taskHooks[columnId];
     if (!taskHook) return;    try {
+      // Store the task before deleting for potential rollback
+      const deletedTask = localTasks[columnId].find(t => t.id === taskId);
+      const originalTasks = [...localTasks[columnId]];
+      
+      // Optimistically update local state
+      updateLocalTasks(columnId, localTasks[columnId].filter(t => t.id !== taskId));
+
+      // Perform the actual database operation
       await taskHook.deleteTask(taskId);
+      
       toast({
         title: "Task deleted",
         description: "Task has been deleted successfully.",
-      });
-      onDataChange?.(); // Trigger data refresh
-    } catch (error) {
+      });    } catch (error) {
+      // Revert optimistic update on error by restoring the full original state
+      setLocalTasks(kanbanData.tasks);
       toast({
         title: "Error",
         description: "Failed to delete task. Please try again.",
         variant: "destructive",
       });
     }
-  };  const handleMatrixDragEnd = async (result: DropResult) => {
+  };
+
+  const handleMatrixDragEnd = async (result: DropResult) => {
     const { destination, source, draggableId } = result;
 
     if (!destination) {
@@ -244,29 +314,52 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
 
     try {
       if (sourceColumnId === destColumnId) {
-        // Reordering within the same column
+        // Optimistically update local state for reordering
+        const tasks = localTasks[sourceColumnId] || [];
+        const reorderedTasks = Array.from(tasks);
+        const [removed] = reorderedTasks.splice(source.index, 1);
+        reorderedTasks.splice(destination.index, 0, removed);
+        updateLocalTasks(sourceColumnId, reorderedTasks);        // Perform the actual database operation
         const sourceTaskHook = taskHooks[sourceColumnId];
         if (sourceTaskHook) {
-          const tasks = kanbanData.tasks[sourceColumnId] || [];
-          const reorderedTasks = Array.from(tasks);
-          const [removed] = reorderedTasks.splice(source.index, 1);
-          reorderedTasks.splice(destination.index, 0, removed);
-          
-          await sourceTaskHook.reorderTasks(reorderedTasks);
+          // Convert to the format expected by reorderTasks (only need id and position)
+          const taskUpdates = reorderedTasks.map((task, index) => ({
+            id: task.id,
+            position: index,
+            // Include other required database fields (will be ignored by upsert)
+            column_id: sourceColumnId,
+            title: task.title,
+            description: task.description || '',
+            importance: task.importance,
+            urgency: task.urgency,
+            assignee: task.assignee || '',
+            due_date: task.dueDate || '',
+            tags: task.tags || [],
+            created_at: '',
+            updated_at: ''
+          }));
+          await sourceTaskHook.reorderTasks(taskUpdates);
         }
       } else {
-        // Moving to a different column - use optimistic update
-        onOptimisticMoveTask?.(draggableId, sourceColumnId, destColumnId, destination.index);
-        
-        // Then perform the database update
-        const sourceTaskHook = taskHooks[sourceColumnId];
-        if (sourceTaskHook) {
-          try {
-            await sourceTaskHook.moveTask(draggableId, destColumnId, destination.index);
-          } catch (error) {
-            // On error, revert by refetching the data
-            onDataChange?.();
-            throw error;
+        // Optimistically update local state for moving between columns
+        const sourceTask = localTasks[sourceColumnId].find(t => t.id === draggableId);
+        if (sourceTask) {
+          const newSourceTasks = localTasks[sourceColumnId].filter(t => t.id !== draggableId);
+          const newDestTasks = localTasks[destColumnId] || [];
+          newDestTasks.splice(destination.index, 0, sourceTask);
+          
+          updateLocalTasks(sourceColumnId, newSourceTasks);
+          updateLocalTasks(destColumnId, newDestTasks);
+          
+          // Perform the actual database operation
+          const sourceTaskHook = taskHooks[sourceColumnId];
+          if (sourceTaskHook) {
+            try {
+              await sourceTaskHook.moveTask(draggableId, destColumnId, destination.index);            } catch (error) {
+              // Revert optimistic update on error
+              setLocalTasks(kanbanData.tasks);
+              throw error;
+            }
           }
         }
       }
@@ -329,7 +422,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
         </div>
       </div>      {/* Conditional View Rendering */}
       {viewMode === 'matrix' ? (        <EisenhowerMatrixView
-          tasks={kanbanData.tasks}
+          tasks={localTasks}
           columns={kanbanData.columns}
           onDragEnd={handleMatrixDragEnd}
           onUpdateTask={handleUpdateTask}
@@ -337,18 +430,17 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
           onEditTask={handleEditTask}
         />) : viewMode === 'table' ? (
         <TableView
-          tasks={kanbanData.tasks}
+          tasks={localTasks}
           columns={kanbanData.columns}
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}
           onAddTask={handleAddTask}
           onEditTask={handleEditTask}
         />
-      ) : (
-        <DragDropContext onDragEnd={handleDragEnd}>
+      ) : (        <DragDropContext onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 h-full">
             {kanbanData.columns.map((column) => {
-              const columnTasks = kanbanData.tasks[column.id] || [];
+              const columnTasks = localTasks[column.id] || [];
               
               return (
                 <div key={column.id} className="flex flex-col h-full min-h-0">
@@ -394,7 +486,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
                                 {...provided.dragHandleProps}
-                              >                                <TaskCard
+                              >
+                                <TaskCard
                                   task={{
                                     id: task.id,
                                     title: task.title,
@@ -402,7 +495,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
                                     importance: task.importance,
                                     urgency: task.urgency,
                                     assignee: task.assignee || undefined,
-                                    dueDate: task.due_date || undefined,
+                                    dueDate: task.dueDate || undefined,
                                     tags: task.tags || []
                                   }}
                                   isDragging={snapshot.isDragging}
