@@ -1,5 +1,5 @@
-import React, { useRef, useState, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import React, { useRef, useState, useMemo, useImperativeHandle, forwardRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Text, Html } from '@react-three/drei';
 import { Task } from './KanbanBoard';
 import { Column } from '@/integrations/supabase/types';
@@ -8,6 +8,11 @@ import * as THREE from 'three';
 interface TaskSpaceView3DProps {
   tasks: Record<string, Task[]>;
   columns: Column[];
+}
+
+interface TaskSpaceView3DRef {
+  setKanbanView: () => void;
+  setMatrixView: () => void;
 }
 
 interface TaskCubeProps {
@@ -107,15 +112,73 @@ const TaskCube: React.FC<TaskCubeProps> = ({ task, position, column }) => {
     </group>
   );
 };
+const CameraController = forwardRef<{ setKanbanView: () => void; setMatrixView: () => void }, {}>((props, ref) => {
+  const { camera } = useThree();
+  const controlsRef = useRef<any>();
+
+  const animateCamera = (targetPosition: THREE.Vector3, targetLookAt: THREE.Vector3) => {
+    if (!controlsRef.current) return;
+
+    const duration = 1500; // Animation duration in ms
+    const startTime = Date.now();
+    const startPosition = camera.position.clone();
+    const startTarget = controlsRef.current.target.clone();
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function for smooth animation
+      const eased = 1 - Math.pow(1 - progress, 3);
+
+      camera.position.lerpVectors(startPosition, targetPosition, eased);
+      controlsRef.current.target.lerpVectors(startTarget, targetLookAt, eased);
+      controlsRef.current.update();
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    animate();
+  };
+  useImperativeHandle(ref, () => ({
+    setKanbanView: () => {
+      // Side view to see columns sequence along Z-axis
+      const targetPosition = new THREE.Vector3(-25, 8, 0);
+      const targetLookAt = new THREE.Vector3(0, 0, 0);
+      animateCamera(targetPosition, targetLookAt);
+    },
+    setMatrixView: () => {
+      // Front view to see urgency/importance matrix
+      const targetPosition = new THREE.Vector3(0, 8, 25);
+      const targetLookAt = new THREE.Vector3(0, 0, 0);
+      animateCamera(targetPosition, targetLookAt);
+    }
+  }));
+
+  return (
+    <OrbitControls 
+      ref={controlsRef}
+      enableDamping 
+      dampingFactor={0.05}
+      enablePan={true}
+      enableZoom={true}
+      enableRotate={true}
+      maxPolarAngle={Math.PI}
+      minDistance={8}
+      maxDistance={80}
+      target={[0, 0, 0]}
+    />
+  );
+});
+
 const TaskSpace3D: React.FC<TaskSpaceView3DProps> = ({ tasks, columns }) => {
-  const urgencyRange = 6; // Y-axis range for urgency
-  const importanceRange = 6; // Z-axis range for importance
-    const taskCubes = useMemo(() => {
+  const taskCubes = useMemo(() => {
     const cubes: JSX.Element[] = [];
     
     // Calculate spacing between columns - tasks should be right next to each other
     const columnSpacing = 10;
-    const taskSpacing = 2; // Close spacing between tasks in same column
     
     Object.entries(tasks).forEach(([columnId, columnTasks]) => {
       const column = columns.find(col => col.id === columnId);
@@ -127,7 +190,8 @@ const TaskSpace3D: React.FC<TaskSpaceView3DProps> = ({ tasks, columns }) => {
       columnTasks.forEach((task, taskIndex) => {
         // Z-axis: Column position (sequence in workflow)
         const z = baseX;
-          // X-axis: Urgency (urgent tasks to the right, not urgent to the left)
+        
+        // X-axis: Urgency (urgent tasks to the right, not urgent to the left)
         const x = task.urgency ? 3 : -3;
         
         // Y-axis: Importance (important tasks higher up, not important lower down)
@@ -165,7 +229,7 @@ const TaskSpace3D: React.FC<TaskSpaceView3DProps> = ({ tasks, columns }) => {
     });
     
     return cubes;
-  }, [tasks, columns]);  return (
+  }, [tasks, columns]);return (
     <>
       {/* Updated Axis Labels for new positioning */}
       <Text position={[5, 0, 0]} fontSize={1.0} color="#888" anchorX="center" anchorY="center">
@@ -205,29 +269,23 @@ const TaskSpace3D: React.FC<TaskSpaceView3DProps> = ({ tasks, columns }) => {
       <ambientLight intensity={0.6} />
       <directionalLight position={[10, 10, 5]} intensity={1.0} castShadow />
       <directionalLight position={[-10, 5, -5]} intensity={0.4} />
-    </>
-  );
+    </>  );
 };
 
-export const TaskSpaceView3D: React.FC<TaskSpaceView3DProps> = ({ tasks, columns }) => {
-  return (
+export const TaskSpaceView3D = forwardRef<TaskSpaceView3DRef, TaskSpaceView3DProps>(({ tasks, columns }, ref) => {
+  const cameraControlsRef = useRef<{ setKanbanView: () => void; setMatrixView: () => void }>(null);
+
+  useImperativeHandle(ref, () => ({
+    setKanbanView: () => cameraControlsRef.current?.setKanbanView(),
+    setMatrixView: () => cameraControlsRef.current?.setMatrixView()
+  }));  return (
     <Canvas 
       shadows 
-      camera={{ position: [20, 15, 20], fov: 60 }}
+      camera={{ position: [-12, 10, 12], fov: 60 }}
       style={{ background: 'linear-gradient(to bottom, #0f0f23, #000)' }}
     >
       <TaskSpace3D tasks={tasks} columns={columns} />
-      <OrbitControls 
-        enableDamping 
-        dampingFactor={0.05}
-        enablePan={true}
-        enableZoom={true}
-        enableRotate={true}
-        maxPolarAngle={Math.PI}
-        minDistance={8}
-        maxDistance={80}
-        target={[0, 0, 0]}
-      />
+      <CameraController ref={cameraControlsRef} />
     </Canvas>
   );
-};
+});
