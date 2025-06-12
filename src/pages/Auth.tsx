@@ -85,7 +85,7 @@ const Auth = () => {
           </CardTitle>
           <CardDescription className="text-center">
             {isLogin 
-              ? 'Sign in to your TaskFlow account' 
+              ? 'Sign in to your TaskSpace account' 
               : 'Sign up to start organizing your tasks'
             }
           </CardDescription>
