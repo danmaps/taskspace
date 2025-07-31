@@ -15,14 +15,31 @@ const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();  // Use remote data hooks
   const { boards, loading: boardsLoading, createBoard, deleteBoard } = useBoards();
-  const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
+  // Use localStorage to persist active board selection
+  const [activeBoardId, setActiveBoardId] = useState<string | null>(() => {
+    return localStorage.getItem('activeBoardId');
+  });
   const { data: kanbanData, loading: kanbanLoading, createDefaultBoard, refetch: refetchKanbanData, optimisticMoveTask } = useKanbanBoard(activeBoardId);
   // Set initial active board when boards are loaded
   useEffect(() => {
     if (boards.length > 0 && !activeBoardId) {
-      setActiveBoardId(boards[0].id);
+      const storedId = localStorage.getItem('activeBoardId');
+      const found = boards.find(b => b.id === storedId);
+      if (found) {
+        setActiveBoardId(storedId);
+      } else {
+        setActiveBoardId(boards[0].id);
+      }
     }
   }, [boards, activeBoardId]);
+  // Persist active board ID to localStorage
+  useEffect(() => {
+    if (activeBoardId) {
+      localStorage.setItem('activeBoardId', activeBoardId);
+    } else {
+      localStorage.removeItem('activeBoardId');
+    }
+  }, [activeBoardId]);
 
   const handleBoardChange = (boardId: string) => {
     setActiveBoardId(boardId);
