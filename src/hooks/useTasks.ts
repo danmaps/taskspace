@@ -101,21 +101,21 @@ export function useTasks(columnId: string | null) {
         .from('tasks')
         .update({ 
           column_id: newColumnId, 
-          position: newPosition 
+          position: newPosition,
+          updated_at: new Date().toISOString()
         })
         .eq('id', taskId)
         .select()
         .single()
 
       if (error) throw error
-      
-      // Remove from current tasks if moving to different column
+
       if (newColumnId !== columnId) {
         setTasks(prev => prev.filter(task => task.id !== taskId))
       } else {
         setTasks(prev => prev.map(task => task.id === taskId ? data : task))
       }
-      
+
       return data
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to move task')
@@ -123,26 +123,31 @@ export function useTasks(columnId: string | null) {
     }
   }
 
+  const sanitizeTask = (task: Task, index: number) => {
+    const sanitized: any = {
+      ...task,
+      position: index,
+      updated_at: task.updated_at && task.updated_at !== "" ? task.updated_at : new Date().toISOString(),
+      due_date: task.due_date && task.due_date !== "" ? task.due_date : null,
+      description: task.description && task.description !== "" ? task.description : null,
+      assignee: task.assignee && task.assignee !== "" ? task.assignee : null,
+    };
+    delete sanitized.created_at;
+    return sanitized;
+  };
+
   const reorderTasks = async (newTasks: Task[]) => {
     try {
-      // Update positions in batch
-      const updates = newTasks.map((task, index) => ({
-        id: task.id,
-        position: index
-      }))
-
+      const updates = newTasks.map(sanitizeTask);
       const { error } = await supabase
         .from('tasks')
-        .upsert(updates.map(update => ({ 
-          id: update.id, 
-          position: update.position 
-        })))
+        .upsert(updates);
 
-      if (error) throw error
-      setTasks(newTasks)
+      if (error) throw error;
+      setTasks(newTasks);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reorder tasks')
-      throw err
+      setError(err instanceof Error ? err.message : 'Failed to reorder tasks');
+      throw err;
     }
   }
 
