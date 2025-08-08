@@ -106,7 +106,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
         assignee: task.assignee || null,
         due_date: task.dueDate || null,
         tags: task.tags || []
-      });      // Update local state with the real task ID
+      });      
+      // Update local state with the real task ID
       if (createdTask) {
         setLocalTasks(prev => ({
           ...prev,
@@ -421,7 +422,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
           </Button>
         </div>
       </div>      {/* Conditional View Rendering */}
-      {viewMode === 'matrix' ? (        <EisenhowerMatrixView
+      {viewMode === 'matrix' ? (        
+        <EisenhowerMatrixView
           tasks={localTasks}
           columns={kanbanData.columns}
           onDragEnd={handleMatrixDragEnd}
@@ -437,7 +439,8 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ kanbanData, onDataChan
           onAddTask={handleAddTask}
           onEditTask={handleEditTask}
         />
-      ) : (        <DragDropContext onDragEnd={handleDragEnd}>
+      ) : (        
+      <DragDropContext onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 h-full">
             {kanbanData.columns.map((column) => {
               const columnTasks = localTasks[column.id] || [];
