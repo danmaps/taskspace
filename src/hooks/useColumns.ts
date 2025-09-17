@@ -103,14 +103,16 @@ export function useColumns(boardId: string | null) {
         position: index
       }))
 
-      const { error } = await supabase
-        .from('columns')
-        .upsert(updates.map(update => ({ 
-          id: update.id, 
-          position: update.position 
-        })))
+      // Update each column individually to avoid type issues
+      for (const update of updates) {
+        const { error: updateError } = await supabase
+          .from('columns')
+          .update({ position: update.position })
+          .eq('id', update.id)
+        
+        if (updateError) throw updateError
+      }
 
-      if (error) throw error
       setColumns(newColumns)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to reorder columns')

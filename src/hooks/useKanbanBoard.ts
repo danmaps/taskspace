@@ -21,13 +21,19 @@ export function useKanbanBoard(boardId: string | null) {
   useEffect(() => {
     if (boardId && user) {
       fetchKanbanData()
-      const cleanup = setupRealTimeSubscriptions()
-      return cleanup
     } else {
       setData({ board: null, columns: [], tasks: {} })
       setLoading(false)
     }
   }, [boardId, user])
+
+  // Separate effect for setting up subscriptions after data is loaded
+  useEffect(() => {
+    if (boardId && user && data.columns.length > 0) {
+      const cleanup = setupRealTimeSubscriptions()
+      return cleanup
+    }
+  }, [boardId, user, data.columns.length])
 
   const fetchKanbanData = async () => {
     if (!boardId) return
@@ -75,7 +81,16 @@ export function useKanbanBoard(boardId: string | null) {
   }
 
   const setupRealTimeSubscriptions = () => {
-    if (!boardId) return
+    if (!boardId || !data.columns.length) return
+
+    // Use a simple debounce to prevent excessive refetches
+    let refetchTimeout: NodeJS.Timeout | null = null
+    const debouncedRefetch = () => {
+      if (refetchTimeout) clearTimeout(refetchTimeout)
+      refetchTimeout = setTimeout(() => {
+        fetchKanbanData()
+      }, 100)
+    }
 
     // Subscribe to column changes
     const columnsChannel = supabase
@@ -88,13 +103,12 @@ export function useKanbanBoard(boardId: string | null) {
           table: 'columns',
           filter: `board_id=eq.${boardId}`
         },
-        () => {
-          fetchKanbanData() // Refetch all data on any change
-        }
+        debouncedRefetch
       )
       .subscribe()
 
-    // Subscribe to task changes
+    // Subscribe to task changes - only for tasks in this board's columns
+    const columnIds = data.columns.map(col => col.id).join(',')
     const tasksChannel = supabase
       .channel(`tasks-${boardId}`)
       .on(
@@ -104,13 +118,21 @@ export function useKanbanBoard(boardId: string | null) {
           schema: 'public',
           table: 'tasks'
         },
-        () => {
-          fetchKanbanData() // Refetch all data on any change
+        (payload) => {
+          // Only refetch if the task belongs to one of our columns
+          const newRecord = payload.new as any
+          const oldRecord = payload.old as any
+          const relevantColumnId = newRecord?.column_id || oldRecord?.column_id
+          
+          if (relevantColumnId && data.columns.some(col => col.id === relevantColumnId)) {
+            debouncedRefetch()
+          }
         }
       )
       .subscribe()
 
     return () => {
+      if (refetchTimeout) clearTimeout(refetchTimeout)
       supabase.removeChannel(columnsChannel)
       supabase.removeChannel(tasksChannel)
     }
