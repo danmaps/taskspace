@@ -10,7 +10,15 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { Prototype3D } from "./pages/Prototype3D";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: 60000,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

@@ -10,12 +10,13 @@ export function useBoards() {
   const { user } = useAuth()
 
   useEffect(() => {
-    if (user) {
-      fetchBoards()    } else {
+    if (user?.id) {
+      fetchBoards()
+    } else {
       setBoards([])
       setLoading(false)
     }
-  }, [user])
+  }, [user?.id])
   const fetchBoards = async () => {
     try {
       setLoading(true)

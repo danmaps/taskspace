@@ -19,21 +19,21 @@ export function useKanbanBoard(boardId: string | null) {
   const [error, setError] = useState<string | null>(null)
   const { user } = useAuth()
   useEffect(() => {
-    if (boardId && user) {
+    if (boardId && user?.id) {
       fetchKanbanData()
     } else {
       setData({ board: null, columns: [], tasks: {} })
       setLoading(false)
     }
-  }, [boardId, user])
+  }, [boardId, user?.id])
 
   // Separate effect for setting up subscriptions after data is loaded
   useEffect(() => {
-    if (boardId && user && data.columns.length > 0) {
+    if (boardId && user?.id && data.columns.length > 0) {
       const cleanup = setupRealTimeSubscriptions()
       return cleanup
     }
-  }, [boardId, user, data.columns.length])
+  }, [boardId, user?.id, data.columns.length])
 
   const fetchKanbanData = async () => {
     if (!boardId) return
